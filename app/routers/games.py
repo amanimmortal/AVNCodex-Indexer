@@ -53,6 +53,19 @@ async def track_game(game_id: int, session: AsyncSession = Depends(get_session))
     return game
 
 
+@router.post("/{game_id}/untrack", response_model=Game)
+async def untrack_game(game_id: int, session: AsyncSession = Depends(get_session)):
+    """
+    Stop tracking a game.
+    """
+    service = GameService(session)
+    try:
+        game = await service.untrack_game(game_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Game not found")
+    return game
+
+
 @router.post("/trigger-update")
 async def trigger_update(session: AsyncSession = Depends(get_session)):
     """Manually trigger the daily update task."""

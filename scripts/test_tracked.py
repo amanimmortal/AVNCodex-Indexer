@@ -17,12 +17,15 @@ async def main():
     # Recreate engine to bypass global singleton if needed, or just use a test file
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    test_db_url = "sqlite+aiosqlite:///data/test_tracked.db"
+    test_db_url = "sqlite+aiosqlite:///data/test_tracked_v2.db"
 
     import os
 
-    if os.path.exists("data/test_tracked.db"):
-        os.remove("data/test_tracked.db")
+    if os.path.exists("data/test_tracked_v2.db"):
+        try:
+            os.remove("data/test_tracked_v2.db")
+        except Exception:
+            pass
 
     engine_test = create_async_engine(test_db_url, echo=False, future=True)
 
@@ -67,11 +70,6 @@ async def main():
         details = json.loads(game.details_json)
         logger.info(f"Details Keys: {list(details.keys())}")
 
-        # Check for meaningful keys from F95Checker
-        # Usually 'downloads' or 'download_links' or similar.
-        # Based on previous tests we saw keys like 'tags', 'version', etc.
-        # F95Checker typically returns 'steam', 'official', 'download', etc.
-
         has_downloads = False
         possible_keys = ["downloads", "download", "links", "mirrors"]
         found_keys = [
@@ -85,7 +83,6 @@ async def main():
             logger.warning(
                 "⚠️ No specific 'download' key found in top level. Printing dump to verify..."
             )
-            # logger.info(json.dumps(details, indent=2))
 
         # Also verify 'status' and 'version' are set
         logger.info(f"Version: {game.version}")
@@ -93,10 +90,20 @@ async def main():
 
         if not has_downloads:
             logger.error("❌ Failed to verify download links in details.")
-            # We let it fail if user demanded it.
-            # But maybe the key is different?
 
         logger.info("✅ Tracking Flow Test Passed.")
+
+        # Test Case: Untrack Game
+        logger.info(f"Untracking game ID {target_id}...")
+        game = await service.untrack_game(target_id)
+
+        logger.info(f"Is Tracked (After Untrack): {game.tracked}")
+
+        if game.tracked:
+            logger.error("❌ Game tracked status is still True!")
+            sys.exit(1)
+
+        logger.info("✅ Untracking Flow Test Passed.")
 
 
 if __name__ == "__main__":

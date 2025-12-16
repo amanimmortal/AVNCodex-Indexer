@@ -44,7 +44,13 @@ Mark a game as "Tracked". This prioritizes it for updates and immediately fetche
 - **Returns**: Updated [Game Object](#game-object-model).
 - **Side Effect**: Triggers immediate background sync for this game.
 
-### 4. Force Refresh
+### 4. Untrack Game
+Stop tracking a game.
+- **Method**: `POST`
+- **Endpoint**: `/games/{game_id}/untrack`
+- **Returns**: Updated [Game Object](#game-object-model) with `tracked=false`.
+
+### 5. Force Refresh
 Manually force a sync for a specific game from upstream sources.
 - **Method**: `POST`
 - **Endpoint**: `/games/{game_id}/refresh`
@@ -131,9 +137,49 @@ The most complex and critical field. It is a nested list structure supporting mu
     - `message`: Review text
     - `timestamp`: Epoch time
 
-### 🚩 Status Codes
-If `status` is returned as a code/string from F95Checker:
-- **`1`**: Ongoing / In Development.
-- **Completed**: Story is finished.
-- **Abandoned**: Development halted.
-- **On Hold**: Development paused.
+### 🚩 Status Codes (`status`)
+F95Checker uses integer codes for status.
+| Code | Status | Description |
+| :--- | :--- | :--- |
+| `1` | **Normal/Ongoing** | In active development. |
+| `2` | **Completed** | Story is finished. |
+| `3` | **On Hold** | Development paused. |
+| `4` | **Abandoned** | Development halted. |
+| `5` | **Unchecked** | New/Unknown. |
+
+### 🏷️ Top Tags (`tags`)
+Tags are returned as a list of integers. Common mappings include:
+| ID | Tag | ID | Tag |
+| :--- | :--- | :--- | :--- |
+| `1` | 2D Game | `2` | 2DCG |
+| `3` | 3D Game | `4` | 3DCG |
+| `5` | Adventure | `105` | RPG |
+| `104` | Romance | `115` | Simulator |
+| `60` | Graphic Violence | `57` | Futa/Trans |
+| `136` | Virtual Reality | `56` | Furry |
+| `41` | Character Creation | `137` | Voiced |
+*(See `reference_lib/F95Checker-main/common/structs.py` for full 140+ tag list)*
+
+### 🎮 Engine / Content Type (`type`)
+The `type` field in `details_json` returns an integer code representing the game engine or content category.
+
+| ID | Engine/Type | ID | Engine/Type |
+| :--- | :--- | :--- | :--- |
+| `1` | Misc | `15` | Request |
+| `2` | ADRIFT | `16` | Tads |
+| `3` | Cheat Mod | `17` | Tool |
+| `4` | Flash | `18` | Tutorial |
+| `5` | HTML | `19` | Unity |
+| `6` | Java | `20` | Unreal Engine |
+| `7` | Collection | `21` | WebGL |
+| `8` | Mod | `22` | Wolf RPG |
+| `9` | Others | `23` | Unchecked |
+| `10` | QSP | `24` | Comics |
+| `11` | RAGS | `25` | GIF |
+| `12` | READ ME | `26` | Manga |
+| `13` | RPGM | `27` | Pinup |
+| `14` | Ren'Py | `28` | SiteRip |
+|  |  | `29` | Video |
+|  |  | `30` | CG |
+
+*(Source: `reference_lib/F95Checker-main/common/structs.py`)*

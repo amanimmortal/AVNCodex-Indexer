@@ -47,6 +47,20 @@ class GameService:
         await self.session.refresh(game)
         return game
 
+    async def untrack_game(self, thread_id: int) -> Game:
+        """
+        Disable tracking for a game.
+        """
+        game = await self.get_game_by_id(thread_id)
+        if not game:
+            raise ValueError(f"Game with ID {thread_id} not found locally.")
+
+        game.tracked = False
+        self.session.add(game)
+        await self.session.commit()
+        await self.session.refresh(game)
+        return game
+
     async def sync_tracked_games(self, specific_ids: List[int] = None):
         """
         Check for updates for tracked games using F95Checker API.
