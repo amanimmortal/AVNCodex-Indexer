@@ -18,11 +18,17 @@ Currently, the API is **public** and does not require authentication. Ensure it 
 ## 📡 Endpoints
 
 ### 1. Search Games
-Search for a game by name. This performs a hybrid search (Local DB -> F95Zone Direct API -> RSS -> F95Checker).
+Search for a game by name or browse the local library with filters.
 - **Method**: `GET`
 - **Endpoint**: `/games/search`
+- **Behavior**:
+    - **With `q`**: Performs a **Remote Search** (F95Zone) to fetch fresh data, upserts it to the Local DB, then returns filtered results from the Local DB.
+    - **Without `q`**: Browses/Filters the **Local DB** only.
 - **Params**: 
-    - `q` (string, required): The search query (e.g., "Eternum").
+    - `q` (string, optional): The search query (e.g., "Eternum").
+    - `status` (string, optional): Filter by exact status (e.g., "Ongoing", "Completed", "Abandoned").
+    - `tags` (list[string], optional): Filter by tag. key=value (e.g., `tags=RPG&tags=Adventure`).
+    - `updated_after` (string, optional): Filter for games updated after this date (ISO 8601, e.g., "2024-01-01").
 - **Returns**: JSON Array of [Game Objects](#game-object-model).
 
 ### 2. Get Game Details

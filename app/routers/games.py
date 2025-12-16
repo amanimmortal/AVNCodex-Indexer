@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 from app.database import get_session
 from app.services.game_service import GameService
 from app.models import Game
@@ -9,10 +10,16 @@ router = APIRouter(prefix="/games", tags=["games"])
 
 
 @router.get("/search", response_model=List[Game])
-async def search_games(q: str, session: AsyncSession = Depends(get_session)):
+async def search_games(
+    q: str = None,
+    status: str = None,
+    tags: List[str] = Query(None),
+    updated_after: datetime = None,
+    session: AsyncSession = Depends(get_session),
+):
     service = GameService(session)
     # Use the hybrid search and index logic
-    return await service.search_and_index(q)
+    return await service.search_and_index(q, status, tags, updated_after)
 
 
 @router.get("/{game_id}", response_model=Game)
