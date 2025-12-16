@@ -5,10 +5,10 @@ This document provides instructions for developers interacting with the AVNCodex
 ## 🚀 Getting Started
 
 ### Base URL
-The API runs on port `8000` by default.
-- **Base URL**: `http://localhost:8000`
-- **Swagger UI** (Interactive Docs): `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+The API runs on port `5005` by default.
+- **Base URL**: `http://192.168.200.16:5005`
+- **Swagger UI** (Interactive Docs): `http://192.168.200.16:5005/docs`
+- **ReDoc**: `http://192.168.200.16:5005/redoc`
 
 ### Authentication
 Currently, the API is **public** and does not require authentication. Ensure it is not exposed to the open internet without a reverse proxy or firewall.
