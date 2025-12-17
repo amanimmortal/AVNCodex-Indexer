@@ -7,9 +7,11 @@ from app.models import Game
 from app.services.f95_client import F95ZoneClient
 from app.database import AsyncSessionLocal
 
+from app.settings import settings
+
 logger = logging.getLogger(__name__)
 
-STATE_FILE = "data/seed_state.json"
+STATE_FILE = settings.SEED_STATE_FILE
 
 
 class SeedService:

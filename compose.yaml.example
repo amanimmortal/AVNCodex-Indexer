@@ -11,6 +11,7 @@ services:
       - PUID=99
       - PGID=100
       - DATABASE_URL=sqlite+aiosqlite:////data/avn_index.db
+      - SEED_STATE_FILE=/data/seed_state.json
       - F95_USERNAME=amanimmortal
       - F95_PASSWORD=27L5ueFMUZ4NmAz
     restart: unless-stopped

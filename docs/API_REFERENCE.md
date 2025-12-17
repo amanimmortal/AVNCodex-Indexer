@@ -67,6 +67,7 @@ Trigger the alphabetical background seeding task. This scrapes F95Zone alphabeti
 - **Method**: `POST`
 - **Endpoint**: `/games/seed`
 - **Returns**: JSON Status.
+- **Example**: Invoke-RestMethod -Method Post -Uri "http://192.168.200.16:5005/games/seed"
 
 ### 8. Get Seeding Status
 Get the current status of the background seeding process.
