@@ -130,6 +130,18 @@ class GameService:
         if details.get("tags"):
             game.tags = json.dumps(details.get("tags"))
 
+        # Cover URL
+        # F95Checker usually puts it in 'featured_image' or 'cover_url' or similar?
+        # Based on legacy investigation, it might be just 'image_url' or passed in details.
+        # We will check common keys.
+        game.cover_url = (
+            details.get("featured_image")
+            or details.get("cover_url")
+            or details.get("image_url")
+            or details.get("cover")
+            or game.cover_url
+        )
+
         current_details = {}
         if game.details_json:
             try:
@@ -229,6 +241,16 @@ class GameService:
                 game.name = data.get("title") or game.name
                 game.creator = data.get("creator")
                 game.version = data.get("version")
+                # Attempt to get cover if available in search result
+                # Note: F95Zone Latest Updates API often has 'icon' or similar, but maybe not full cover.
+                # We check whatever keys are present.
+                game.cover_url = (
+                    data.get("cover_url")
+                    or data.get("featured_image")
+                    or data.get("image_url")
+                    or data.get("cover")
+                    or game.cover_url
+                )
                 # Do not overwrite status/tags from zone search
 
                 self.session.add(game)
@@ -272,6 +294,14 @@ class GameService:
                 game.version = data.get("version")
                 game.creator = data.get("creator")
 
+                game.cover_url = (
+                    data.get("cover_url")
+                    or data.get("featured_image")
+                    or data.get("image_url")
+                    or data.get("cover")
+                    or game.cover_url
+                )
+
                 # Check date vs known? Simple upsert for now unless logic refines.
                 # game.f95_last_update = ...
 
@@ -310,6 +340,13 @@ class GameService:
 
                 game.name = details.get("name") or game.name
                 game.version = details.get("version")
+                game.cover_url = (
+                    details.get("featured_image")
+                    or details.get("cover_url")
+                    or details.get("image_url")
+                    or details.get("cover")
+                    or game.cover_url
+                )
                 game.status = str(details.get("status"))
                 game.tags = json.dumps(details.get("tags") or [])
                 game.details_json = json.dumps(details)

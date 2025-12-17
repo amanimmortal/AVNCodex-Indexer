@@ -2,8 +2,6 @@ import logging
 import asyncio
 import json
 import os
-from typing import Optional
-from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Game
 from app.services.f95_client import F95ZoneClient
@@ -143,6 +141,15 @@ class SeedService:
         game.name = data.get("title") or game.name
         game.creator = data.get("creator") or game.creator
         game.version = data.get("version")
+
+        # Cover URL from API
+        game.cover_url = (
+            data.get("cover_url")
+            or data.get("featured_image")
+            or data.get("image_url")
+            or data.get("cover")
+            or game.cover_url
+        )
 
         # Date from F95Zone is usually relative "51 mins" or "Yesterday"
         # We assume 'ts' is better if available, but 'get_latest_updates' might not return 'ts' in 'list' mode?

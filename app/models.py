@@ -13,6 +13,7 @@ class Game(SQLModel, table=True):
     name: str = Field(index=True)
     creator: Optional[str] = None
     version: Optional[str] = None
+    cover_url: Optional[str] = None
     f95_last_update: Optional[datetime] = None
 
     # Tracked Status (Internal)

@@ -2,6 +2,12 @@
 
 Extracted from `common/structs.py` in the F95Checker repository.
 
+This document categorizes tags to help with UI filtering. Usage of tags:
+- **General Content Tags**: Apply to **Games**, **Comics**, **Animations**, etc.
+- **Asset Tags**: Apply specifically to 3D Assets (e.g. Daz models).
+
+## General Content Tags (Games, Comics, Media)
+
 | ID | Internal Name | Display Name |
 | :--- | :--- | :--- |
 | 1 | 2d-game | 2d game |
@@ -12,31 +18,6 @@ Extracted from `common/structs.py` in the F95Checker repository.
 | 6 | ahegao | ahegao |
 | 7 | anal-sex | anal sex |
 | 8 | animated | animated |
-| 9 | asset-addon | asset-addon |
-| 10 | asset-ai-shoujo | asset-ai-shoujo |
-| 11 | asset-animal | asset-animal |
-| 12 | asset-animation | asset-animation |
-| 13 | asset-audio | asset-audio |
-| 14 | asset-bundle | asset-bundle |
-| 15 | asset-character | asset-character |
-| 16 | asset-clothing | asset-clothing |
-| 17 | asset-environment | asset-environment |
-| 18 | asset-expression | asset-expression |
-| 19 | asset-hair | asset-hair |
-| 20 | asset-hdri | asset-hdri |
-| 21 | asset-honey-select | asset-honey-select |
-| 22 | asset-honey-select2 | asset-honey-select2 |
-| 23 | asset-koikatu | asset-koikatu |
-| 24 | asset-light | asset-light |
-| 25 | asset-morph | asset-morph |
-| 26 | asset-plugin | asset-plugin |
-| 27 | asset-pose | asset-pose |
-| 28 | asset-prop | asset-prop |
-| 29 | asset-script | asset-script |
-| 30 | asset-shader | asset-shader |
-| 31 | asset-texture | asset-texture |
-| 32 | asset-utility | asset-utility |
-| 33 | asset-vehicle | asset-vehicle |
 | 34 | bdsm | bdsm |
 | 35 | bestiality | bestiality |
 | 36 | big-ass | big ass |
@@ -142,8 +123,38 @@ Extracted from `common/structs.py` in the F95Checker repository.
 | 136 | virtual-reality | virtual reality |
 | 137 | voiced | voiced |
 | 138 | vore | vore |
-| 139 | voyeurism | voyeurism |
+139 | voyeurism | voyeurism |
 | 140 | ai-cg | ai cg |
+
+## Asset Tags (3D Models, Textures, etc.)
+
+| ID | Internal Name | Display Name |
+| :--- | :--- | :--- |
+| 9 | asset-addon | asset-addon |
+| 10 | asset-ai-shoujo | asset-ai-shoujo |
+| 11 | asset-animal | asset-animal |
+| 12 | asset-animation | asset-animation |
+| 13 | asset-audio | asset-audio |
+| 14 | asset-bundle | asset-bundle |
+| 15 | asset-character | asset-character |
+| 16 | asset-clothing | asset-clothing |
+| 17 | asset-environment | asset-environment |
+| 18 | asset-expression | asset-expression |
+| 19 | asset-hair | asset-hair |
+| 20 | asset-hdri | asset-hdri |
+| 21 | asset-honey-select | asset-honey-select |
+| 22 | asset-honey-select2 | asset-honey-select2 |
+| 23 | asset-koikatu | asset-koikatu |
+| 24 | asset-light | asset-light |
+| 25 | asset-morph | asset-morph |
+| 26 | asset-plugin | asset-plugin |
+| 27 | asset-pose | asset-pose |
+| 28 | asset-prop | asset-prop |
+| 29 | asset-script | asset-script |
+| 30 | asset-shader | asset-shader |
+| 31 | asset-texture | asset-texture |
+| 32 | asset-utility | asset-utility |
+| 33 | asset-vehicle | asset-vehicle |
 | 141 | asset-daz-gen2 | asset-daz-gen2 |
 | 142 | asset-daz-gen3 | asset-daz-gen3 |
 | 143 | asset-daz-gen8 | asset-daz-gen8 |
@@ -157,7 +168,6 @@ Extracted from `common/structs.py` in the F95Checker repository.
 | 151 | asset-daz-gen1 | asset-daz-gen1 |
 | 152 | asset-daz-m4 | asset-daz-m4 |
 | 153 | asset-daz-v4 | asset-daz-v4 |
-
 
 # F95Zone Type ID to Name Mapping
 
