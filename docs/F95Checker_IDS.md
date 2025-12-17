@@ -195,3 +195,16 @@ Extracted from `common/structs.py` in the F95Checker repository.
 | 28 | SiteRip | Media |
 | 29 | Video | Media |
 | 30 | CG | Media |
+
+# F95Checker Status ID to Name Mapping
+
+Extracted from `common/structs.py` in the F95Checker repository.
+
+| ID | Name | Description |
+| :--- | :--- | :--- |
+| **1** | **Normal** | Active / Ongoing |
+| **2** | **Completed** | Development Finished |
+| **3** | **OnHold** | Development Paused |
+| **4** | **Abandoned** | Development Stopped |
+| **5** | **Unchecked** | Untracked / Unknown |
+| **6** | **Custom** | User Defined |

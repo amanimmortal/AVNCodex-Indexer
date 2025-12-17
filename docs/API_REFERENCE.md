@@ -54,11 +54,29 @@ Stop tracking a game.
 Manually force a sync for a specific game from upstream sources.
 - **Method**: `POST`
 - **Endpoint**: `/games/{game_id}/refresh`
+- **Returns**: Updated [Game Object](#game-object-model).
 
-### 5. Trigger Global Update
+### 6. Trigger Global Update
 Manually trigger the scheduled task that checks for all updates.
 - **Method**: `POST`
 - **Endpoint**: `/games/trigger-update`
+- **Returns**: JSON Status.
+
+### 7. Trigger Seeding
+Trigger the alphabetical background seeding task. This scrapes F95Zone alphabetically to populate the index.
+- **Method**: `POST`
+- **Endpoint**: `/games/seed`
+- **Returns**: JSON Status.
+
+### 8. Get Seeding Status
+Get the current status of the background seeding process.
+- **Method**: `GET`
+- **Endpoint**: `/games/seed`
+- **Returns**: JSON Object.
+    - `is_running` (boolean)
+    - `current_page` (integer)
+    - `items_processed` (integer)
+    - `last_error` (string or null)
 
 ---
 
@@ -69,14 +87,16 @@ The core response object representing a game.
 
 | Field | Type | Description |
 | :--- | :--- | :--- |
-| `id` | Integer | The F95Zone Thread ID (Unique Identifier). |
+| `f95_id` | Integer | The F95Zone Thread ID (Unique Identifier). |
 | `name` | String | Game Title. |
-| `author` | String | Developer/Creator name. |
+| `creator` | String | Developer/Creator name. |
 | `version` | String | Current version string (e.g., "v0.8.6 Public"). |
 | `status` | String | "Completed", "Ongoing", "On Hold", "Abandoned", or "1" (F95Checker code). |
 | `tracked` | Boolean | `true` if this game is being actively monitored for file updates. |
+| `tags` | String | JSON-formatted string of relevant tags (e.g., `"[12, 45]"`). |
 | `f95_last_update` | Timestamp | When the game was last updated on F95Zone (ISO 8601). |
 | `last_updated_at` | Timestamp | When this record was last updated in our local DB. |
+| `last_enriched` | Timestamp | When rich details were last fetched from F95Checker. |
 | `details_json` | JSON String | **Rich Parsed Metadata**. See [Details Dictionary](#details_json-dictionary) below. |
 
 ---
