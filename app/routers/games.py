@@ -21,6 +21,14 @@ async def seed_games(background_tasks: BackgroundTasks):
     return {"status": "Seeding started in background"}
 
 
+@router.get("/seed")
+async def get_seed_status():
+    """
+    Get the current status of the background seeding process.
+    """
+    return seed_service.get_status()
+
+
 @router.get("/search", response_model=List[Game])
 async def search_games(
     background_tasks: BackgroundTasks,

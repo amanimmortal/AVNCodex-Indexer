@@ -16,6 +16,14 @@ class SeedService:
         # TODO: Persist state in a file or DB. For now, in-memory or derived.
         self.page = 1
         self.is_running = False
+        self.items_processed = 0
+
+    def get_status(self):
+        return {
+            "is_running": self.is_running,
+            "current_page": self.page,
+            "items_processed": self.items_processed,
+        }
 
     async def seed_loop(self):
         """
@@ -56,6 +64,7 @@ class SeedService:
                         count += 1
                     await session.commit()
 
+                self.items_processed += count
                 logger.info(f"Upserted {count} games from page {self.page}.")
 
                 # 3. Pagination & Sleep
