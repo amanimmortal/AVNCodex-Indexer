@@ -1,4 +1,4 @@
-# F95Zone Tag ID to Name Mapping
+# F95Checker Tag ID to Name Mapping
 
 Extracted from `common/structs.py` in the F95Checker repository.
 
@@ -157,3 +157,41 @@ Extracted from `common/structs.py` in the F95Checker repository.
 | 151 | asset-daz-gen1 | asset-daz-gen1 |
 | 152 | asset-daz-m4 | asset-daz-m4 |
 | 153 | asset-daz-v4 | asset-daz-v4 |
+
+
+# F95Zone Type ID to Name Mapping
+
+Extracted from `common/structs.py` in the F95Checker repository.
+
+| ID | Name | Category |
+| :--- | :--- | :--- |
+| 1 | Misc | Misc |
+| 2 | ADRIFT | Games |
+| 3 | Cheat Mod | Misc |
+| 4 | Flash | Games |
+| **5** | **HTML** | **Games** |
+| 6 | Java | Games |
+| 7 | Collection | Media |
+| 8 | Mod | Misc |
+| 9 | Others | Games |
+| 10 | QSP | Games |
+| 11 | RAGS | Games |
+| 12 | READ ME | Misc |
+| 13 | RPGM | Games |
+| 14 | RenPy | Games |
+| 15 | Request | Misc |
+| 16 | Tads | Games |
+| 17 | Tool | Misc |
+| 18 | Tutorial | Misc |
+| 19 | Unity | Games |
+| 20 | Unreal Eng | Games |
+| 21 | WebGL | Games |
+| 22 | Wolf RPG | Games |
+| 23 | Unchecked | Misc |
+| 24 | Comics | Media |
+| 25 | GIF | Media |
+| 26 | Manga | Media |
+| 27 | Pinup | Media |
+| 28 | SiteRip | Media |
+| 29 | Video | Media |
+| 30 | CG | Media |

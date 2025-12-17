@@ -1,16 +1,29 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 from app.database import get_session
 from app.services.game_service import GameService
+from app.services.seed_service import SeedService
 from app.models import Game
 
 router = APIRouter(prefix="/games", tags=["games"])
+seed_service = SeedService()  # Instantiate singleton-ish service
+
+
+@router.post("/seed")
+async def seed_games(background_tasks: BackgroundTasks):
+    """
+    Trigger the alphabetical background seeding task.
+    """
+    # SeedService manages its own session lifecycle inside run logic
+    background_tasks.add_task(seed_service.seed_loop)
+    return {"status": "Seeding started in background"}
 
 
 @router.get("/search", response_model=List[Game])
 async def search_games(
+    background_tasks: BackgroundTasks,
     q: str = None,
     status: str = None,
     tags: List[str] = Query(None),
@@ -19,7 +32,9 @@ async def search_games(
 ):
     service = GameService(session)
     # Use the hybrid search and index logic
-    return await service.search_and_index(q, status, tags, updated_after)
+    return await service.search_and_index(
+        q, status, tags, updated_after, background_tasks
+    )
 
 
 @router.get("/{game_id}", response_model=Game)

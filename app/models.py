@@ -6,14 +6,31 @@ from datetime import datetime
 class Game(SQLModel, table=True):
     __tablename__ = "games"
 
-    id: int = Field(primary_key=True)  # F95 Thread ID
-    name: str = Field(index=True)
-    version: Optional[str] = None
-    status: Optional[str] = None  # Completed, Ongoing, etc.
-    author: Optional[str] = None
-    tracked: bool = Field(default=False)
+    # Primary Key is the F95 Thread ID
+    f95_id: int = Field(primary_key=True)
 
-    last_updated_at: datetime = Field(default_factory=datetime.utcnow)
+    # Basic Info (F95Zone)
+    name: str = Field(index=True)
+    creator: Optional[str] = None
+    version: Optional[str] = None
     f95_last_update: Optional[datetime] = None
 
+    # Tracked Status (Internal)
+    tracked: bool = Field(default=False)
+
+    # Rich Details (F95Checker ONLY)
+    tags: Optional[str] = None  # JSON List[str]
+    status: Optional[str] = None
     details_json: Optional[str] = None
+    last_enriched: Optional[datetime] = None
+
+    # Internal Timestamps
+    last_updated_at: datetime = Field(default_factory=datetime.utcnow)
+
+    @property
+    def id(self) -> int:
+        return self.f95_id
+
+    @id.setter
+    def id(self, value: int):
+        self.f95_id = value
