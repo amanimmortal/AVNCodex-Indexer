@@ -1,14 +1,16 @@
 services:
   app:
-    build: .
-    container_name: avncodex-indexer
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"
+      - "5005:8000"
     volumes:
-      - ./data:/data
-      - ./.env:/app/.env
-    restart: unless-stopped
+      - /mnt/user/appdata/avncodex-indexer/data:/data
     environment:
+      - PUID=99
+      - PGID=100
       - DATABASE_URL=sqlite+aiosqlite:////data/avn_index.db
-      - PUID=1000
-      - PGID=1000
+      - F95_USERNAME=amanimmortal
+      - F95_PASSWORD=27L5ueFMUZ4NmAz
+    restart: unless-stopped

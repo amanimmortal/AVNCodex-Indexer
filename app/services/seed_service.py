@@ -20,6 +20,7 @@ class SeedService:
         self.page = 1
         self.is_running = False
         self.items_processed = 0
+        self.last_error = None
         self._load_state()
 
     def _load_state(self):
@@ -51,6 +52,7 @@ class SeedService:
             "is_running": self.is_running,
             "current_page": self.page,
             "items_processed": self.items_processed,
+            "last_error": str(self.last_error) if self.last_error else None,
         }
 
     async def seed_loop(self):
@@ -63,9 +65,15 @@ class SeedService:
             return
 
         self.is_running = True
+        self.last_error = None
         logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
 
         try:
+            # Authenticate first
+            logger.info("Authenticating with F95Zone...")
+            # Run blocking login in thread
+            await asyncio.to_thread(self.client.login)
+
             while True:
                 # 1. Fetch Page
                 logger.info(f"Seeding Page {self.page} (sort=title)...")
@@ -112,6 +120,7 @@ class SeedService:
                     break
 
         except Exception as e:
+            self.last_error = str(e)
             logger.error(f"Seeding crashed: {e}")
         finally:
             self.is_running = False
