@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import json
+import os
 from typing import Optional
 from sqlalchemy.future import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,14 +11,40 @@ from app.database import AsyncSessionLocal
 
 logger = logging.getLogger(__name__)
 
+STATE_FILE = "data/seed_state.json"
+
 
 class SeedService:
     def __init__(self):
         self.client = F95ZoneClient()
-        # TODO: Persist state in a file or DB. For now, in-memory or derived.
         self.page = 1
         self.is_running = False
         self.items_processed = 0
+        self._load_state()
+
+    def _load_state(self):
+        try:
+            if os.path.exists(STATE_FILE):
+                with open(STATE_FILE, "r") as f:
+                    state = json.load(f)
+                    self.page = state.get("page", 1)
+                    self.items_processed = state.get("items_processed", 0)
+                    logger.info(
+                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}"
+                    )
+        except Exception as e:
+            logger.error(f"Failed to load seed state: {e}")
+
+    def _save_state(self):
+        try:
+            # Ensure dir exists (though main app likely created it for DB)
+            os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+            with open(STATE_FILE, "w") as f:
+                json.dump(
+                    {"page": self.page, "items_processed": self.items_processed}, f
+                )
+        except Exception as e:
+            logger.error(f"Failed to save seed state: {e}")
 
     def get_status(self):
         return {
@@ -35,7 +63,7 @@ class SeedService:
             return
 
         self.is_running = True
-        logger.info("Starting Alphabetical Seed Loop...")
+        logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
 
         try:
             while True:
@@ -69,6 +97,7 @@ class SeedService:
 
                 # 3. Pagination & Sleep
                 self.page += 1
+                self._save_state()  # Save progress
 
                 # Check "Total Pages" if available in response?
                 # Client returns list, not full dict with pagination metadata.
