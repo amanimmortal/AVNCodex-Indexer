@@ -122,7 +122,19 @@ class GameService:
         game.version = details.get("version") or game.version
         game.status = str(details.get("status"))
 
-        game.f95_last_update = datetime.fromtimestamp(ts)
+        # Date Logic: Prefer 'last_updated' from full details (actual index time)
+        # over 'ts' (fast check time), which might just be a staleness check.
+        if details.get("last_updated"):
+            try:
+                # F95Checker API returns string or int timestamp
+                ts_val = float(details["last_updated"])
+                game.f95_last_update = datetime.fromtimestamp(ts_val)
+            except (ValueError, TypeError):
+                # Fallback if parse fails
+                game.f95_last_update = datetime.fromtimestamp(ts)
+        else:
+            game.f95_last_update = datetime.fromtimestamp(ts)
+
         game.last_updated_at = datetime.utcnow()
         game.last_enriched = datetime.utcnow()
 
@@ -251,6 +263,17 @@ class GameService:
                     or data.get("cover")
                     or game.cover_url
                 )
+
+                # Parse Date from F95Zone result
+                if data.get("date"):
+                    try:
+                        # API usually returns unix timestamp (int/float)
+                        game.f95_last_update = datetime.fromtimestamp(
+                            float(data["date"])
+                        )
+                    except (ValueError, TypeError):
+                        pass
+
                 # Do not overwrite status/tags from zone search
 
                 self.session.add(game)
@@ -302,8 +325,15 @@ class GameService:
                     or game.cover_url
                 )
 
-                # Check date vs known? Simple upsert for now unless logic refines.
-                # game.f95_last_update = ...
+                # Parse Date from F95Zone result
+                if data.get("date"):
+                    try:
+                        # API usually returns unix timestamp (int/float)
+                        game.f95_last_update = datetime.fromtimestamp(
+                            float(data["date"])
+                        )
+                    except (ValueError, TypeError):
+                        pass
 
                 self.session.add(game)
                 count += 1

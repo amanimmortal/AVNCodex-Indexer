@@ -153,9 +153,16 @@ class SeedService:
             or game.cover_url
         )
 
-        # Date from F95Zone is usually relative "51 mins" or "Yesterday"
-        # We assume 'ts' is better if available, but 'get_latest_updates' might not return 'ts' in 'list' mode?
-        # Actually API response usually has 'date' string.
+        # Date from F95Zone
+        if data.get("date"):
+            try:
+                from datetime import datetime
+
+                # API usually returns unix timestamp (int/float)
+                game.f95_last_update = datetime.fromtimestamp(float(data["date"]))
+            except (ValueError, TypeError):
+                pass
+
         # We strictly avoid overwriting 'status' or 'tags' here.
 
         session.add(game)
