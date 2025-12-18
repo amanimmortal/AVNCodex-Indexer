@@ -129,11 +129,20 @@ class GameService:
                 # F95Checker API returns string or int timestamp
                 ts_val = float(details["last_updated"])
                 game.f95_last_update = datetime.fromtimestamp(ts_val)
+                logger.info(
+                    f"Enriched game {game.f95_id} with FULL update time: {game.f95_last_update}"
+                )
             except (ValueError, TypeError):
                 # Fallback if parse fails
                 game.f95_last_update = datetime.fromtimestamp(ts)
+                logger.warning(
+                    f"Failed to parse 'last_updated', using FAST check time: {game.f95_last_update}"
+                )
         else:
             game.f95_last_update = datetime.fromtimestamp(ts)
+            logger.info(
+                f"Field 'last_updated' missing, using FAST check time: {game.f95_last_update}"
+            )
 
         game.last_updated_at = datetime.utcnow()
         game.last_enriched = datetime.utcnow()
