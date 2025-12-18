@@ -211,30 +211,72 @@ class GameService:
         if updated_after:
             stmt = stmt.where(Game.f95_last_update >= updated_after)
 
+        # Enforce Limit
+        stmt = stmt.limit(60)
+
         result = await self.session.execute(stmt)
         local_results = result.scalars().all()
 
         if local_results:
             logger.info(f"Local hit: {len(local_results)} matches.")
 
-            # Check Staleness
-            if background_tasks:
-                now = datetime.utcnow()
-                for game in local_results:
-                    if game.tracked:
-                        continue
+            # --- Synchronous Freshness Check ---
+            # We want to check if any of these are stale and need immediate enrichment.
+            games_map = {g.f95_id: g for g in local_results}
+            ids_to_check = list(games_map.keys())
 
-                    is_stale = False
-                    if not game.last_enriched:
-                        is_stale = True
-                    elif (now - game.last_enriched).days > 7:
-                        is_stale = True
+            # 1. Fast Check
+            timestamps_map = await asyncio.to_thread(
+                self.checker_client.check_updates, ids_to_check
+            )
 
-                    if is_stale:
-                        logger.info(
-                            f"Game {game.f95_id} is stale / not enriched. Scheduling background update."
-                        )
-                        background_tasks.add_task(standalone_force_update, game.f95_id)
+            # 2. Identify Stale
+            to_fetch_details = []
+
+            for gid, ts in timestamps_map.items():
+                game = games_map.get(gid)
+                if not game:
+                    continue
+
+                should_fetch = False
+
+                # Condition A: Never enriched
+                if not game.last_enriched:
+                    should_fetch = True
+
+                # Condition B: Timestamp mismatch (remote is newer)
+                elif (
+                    game.f95_last_update
+                    and datetime.fromtimestamp(ts) > game.f95_last_update
+                ):
+                    should_fetch = True
+
+                # Condition C: Very old enrichment (safety net, optional, e.g. > 30 days)
+                # elif (now - game.last_enriched).days > 30:
+                #    should_fetch = True
+
+                if should_fetch:
+                    to_fetch_details.append((gid, ts))
+
+            # 3. Synchronous Fetch & Update
+            if to_fetch_details:
+                logger.info(
+                    f"Syncing {len(to_fetch_details)} stale games synchronously..."
+                )
+                for gid, ts in to_fetch_details:
+                    details = await asyncio.to_thread(
+                        self.checker_client.get_game_details, gid, ts
+                    )
+                    if details:
+                        # We reuse the helper, ensuring the object in session is updated
+                        game = games_map[gid]
+                        self._update_game_with_checker_details(game, details, ts)
+
+                # Commit updates before returning
+                await self.session.commit()
+                # Refresh all to ensure return values are current
+                for g in local_results:
+                    await self.session.refresh(g)
 
             return local_results
 
@@ -247,6 +289,9 @@ class GameService:
             remote_matches = await asyncio.to_thread(
                 self.f95_client.search_games, query
             )
+
+            # Limit Remote Results to 60 as well
+            remote_matches = remote_matches[:60]
 
             saved_games = []
             for data in remote_matches:
@@ -262,9 +307,7 @@ class GameService:
                 game.name = data.get("title") or game.name
                 game.creator = data.get("creator")
                 game.version = data.get("version")
-                # Attempt to get cover if available in search result
-                # Note: F95Zone Latest Updates API often has 'icon' or similar, but maybe not full cover.
-                # We check whatever keys are present.
+
                 game.cover_url = (
                     data.get("cover_url")
                     or data.get("featured_image")
@@ -273,22 +316,43 @@ class GameService:
                     or game.cover_url
                 )
 
-                # Parse Date from F95Zone result
+                # Parse Date
                 if data.get("date"):
                     try:
-                        # API usually returns unix timestamp (int/float)
                         game.f95_last_update = datetime.fromtimestamp(
                             float(data["date"])
                         )
                     except (ValueError, TypeError):
                         pass
 
-                # Do not overwrite status/tags from zone search
-
                 self.session.add(game)
                 saved_games.append(game)
 
             await self.session.commit()
+
+            # --- Synchronous Enrichment for Remote Results ---
+            # Make a quick pass to enrich these new findings if possible
+            if saved_games:
+                ids = [g.f95_id for g in saved_games]
+                ts_map = await asyncio.to_thread(self.checker_client.check_updates, ids)
+
+                updates_count = 0
+                for game in saved_games:
+                    ts = ts_map.get(game.f95_id)
+                    if ts:
+                        # Fetch details
+                        details = await asyncio.to_thread(
+                            self.checker_client.get_game_details, game.f95_id, ts
+                        )
+                        if details:
+                            self._update_game_with_checker_details(game, details, ts)
+                            updates_count += 1
+
+                if updates_count > 0:
+                    await self.session.commit()
+                    for g in saved_games:
+                        await self.session.refresh(g)
+
             return saved_games
 
         return []
