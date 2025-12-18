@@ -57,7 +57,8 @@ async def test_zone_date_parsing(session):
         {
             "thread_id": 2,
             "title": "Zone Time Test",
-            "date": 1600000000,  # 2020-09-13
+            "ts": 1600000000,  # 2020-09-13
+            "date": "2 weeks ago",
         }
     ]
 

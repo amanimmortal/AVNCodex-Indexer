@@ -154,11 +154,17 @@ class SeedService:
         )
 
         # Date from F95Zone
-        if data.get("date"):
+        if data.get("ts"):
             try:
                 from datetime import datetime
 
-                # API usually returns unix timestamp (int/float)
+                game.f95_last_update = datetime.fromtimestamp(float(data["ts"]))
+            except (ValueError, TypeError):
+                pass
+        elif data.get("date"):
+            try:
+                from datetime import datetime
+
                 game.f95_last_update = datetime.fromtimestamp(float(data["date"]))
             except (ValueError, TypeError):
                 pass

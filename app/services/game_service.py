@@ -326,9 +326,13 @@ class GameService:
                 )
 
                 # Parse Date from F95Zone result
-                if data.get("date"):
+                if data.get("ts"):
                     try:
-                        # API usually returns unix timestamp (int/float)
+                        game.f95_last_update = datetime.fromtimestamp(float(data["ts"]))
+                    except (ValueError, TypeError):
+                        pass
+                elif data.get("date"):
+                    try:
                         game.f95_last_update = datetime.fromtimestamp(
                             float(data["date"])
                         )
