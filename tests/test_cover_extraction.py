@@ -67,3 +67,35 @@ async def test_cover_url_extraction(session):
         assert game.cover_url == "http://example.com/cover1.jpg", (
             "Should preserve existing cover_url if new one is missing"
         )
+
+
+@pytest.mark.asyncio
+async def test_null_cover_is_updated(session):
+    """
+    Verify that if DB has NULL cover, an incoming sync updates it.
+    """
+    with (
+        patch("app.services.game_service.F95ZoneClient"),
+        patch("app.services.game_service.RSSClient"),
+        patch("app.services.game_service.F95CheckerClient"),
+    ):
+        service = GameService(session)
+
+        # 1. Start with NULL cover
+        game = Game(f95_id=999, name="Null Cover Game", cover_url=None)
+        session.add(game)
+        await session.commit()
+
+        # 2. Sync with new data containing cover
+        details_new = {
+            "name": "Null Cover Game",
+            "featured_image": "http://example.com/new_cover.jpg",
+        }
+        service._update_game_with_checker_details(game, details_new, 123456)
+        await session.commit()
+        await session.refresh(game)
+
+        # 3. Assert it updated
+        assert game.cover_url == "http://example.com/new_cover.jpg", (
+            "NULL cover should be updated by new data"
+        )
