@@ -21,6 +21,7 @@ class SeedService:
         self.is_running = False
         self.items_processed = 0
         self.last_error = None
+        self.was_running_on_shutdown = False
         self._load_state()
 
     def _load_state(self):
@@ -30,8 +31,10 @@ class SeedService:
                     state = json.load(f)
                     self.page = state.get("page", 1)
                     self.items_processed = state.get("items_processed", 0)
+                    # If 'is_running' was True in the file, it means we shut down/crashed while running.
+                    self.was_running_on_shutdown = state.get("is_running", False)
                     logger.info(
-                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}"
+                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}, Was Running: {self.was_running_on_shutdown}"
                     )
         except Exception as e:
             logger.error(f"Failed to load seed state: {e}")
@@ -42,7 +45,12 @@ class SeedService:
             os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
             with open(STATE_FILE, "w") as f:
                 json.dump(
-                    {"page": self.page, "items_processed": self.items_processed}, f
+                    {
+                        "page": self.page,
+                        "items_processed": self.items_processed,
+                        "is_running": self.is_running,
+                    },
+                    f,
                 )
         except Exception as e:
             logger.error(f"Failed to save seed state: {e}")
@@ -65,6 +73,7 @@ class SeedService:
             return
 
         self.is_running = True
+        self._save_state()  # Persist running state
         self.last_error = None
         logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
 
@@ -124,6 +133,7 @@ class SeedService:
             logger.error(f"Seeding crashed: {e}")
         finally:
             self.is_running = False
+            self._save_state()  # Persist stopped state
             logger.info("Seed loop stopped.")
 
     async def _upsert_game_basic(self, session: AsyncSession, data: dict):

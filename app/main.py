@@ -10,6 +10,10 @@ from app.services.game_service import GameService
 from sqlalchemy.orm import sessionmaker
 from app.database import engine
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
 
@@ -35,6 +39,15 @@ async def lifespan(app: FastAPI):
         scheduled_update_task, "interval", hours=settings.SYNC_INTERVAL_HOURS
     )
     scheduler.start()
+
+    # Check for auto-resume of seeding
+    from app.routers.games import seed_service
+
+    if seed_service.was_running_on_shutdown:
+        logger.info(
+            "Previous session ended with seeding active. Auto-resuming seed loop..."
+        )
+        asyncio.create_task(seed_service.seed_loop())
 
     yield
     # Shutdown
