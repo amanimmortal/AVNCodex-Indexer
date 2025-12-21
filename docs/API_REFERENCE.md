@@ -96,6 +96,7 @@ The core response object representing a game.
 | `tracked` | Boolean | `true` if this game is being actively monitored for file updates. |
 | `tags` | String | JSON-formatted string of relevant tags (e.g., `"[12, 45]"`). |
 | `f95_last_update` | Timestamp | When the game was last updated on F95Zone (ISO 8601). |
+| `cover_url` | String | URL to the game's banner/cover image (Local Cache). |
 | `last_updated_at` | Timestamp | When this record was last updated in our local DB. |
 | `last_enriched` | Timestamp | When rich details were last fetched from F95Checker. |
 | `details_json` | JSON String | **Rich Parsed Metadata**. See [Details Dictionary](#details_json-dictionary) below. |
