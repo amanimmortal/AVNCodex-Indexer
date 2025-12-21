@@ -103,18 +103,33 @@ class F95ZoneClient:
             "sort": sort,
         }
 
+        logger.info(
+            "Calling F95Zone Latest Updates",
+            extra={"url": self.LATEST_DATA_URL, "page": page, "rows": rows},
+        )
+
         try:
             resp = self.session.get(self.LATEST_DATA_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
 
             if data.get("status") == "ok":
-                return data.get("msg", {}).get("data", [])
+                results = data.get("msg", {}).get("data", [])
+                logger.info(
+                    "F95Zone Updates Success",
+                    extra={
+                        "status_code": resp.status_code,
+                        "result_count": len(results),
+                    },
+                )
+                return results
             else:
-                logger.error(f"API returned error status: {data}")
+                logger.error("API returned error status", extra={"response": data})
                 return []
         except Exception as e:
-            logger.error(f"Failed to fetch updates: {e}")
+            logger.error(
+                "Failed to fetch updates", exc_info=True, extra={"error": str(e)}
+            )
             return []
 
     def search_games(
@@ -133,14 +148,29 @@ class F95ZoneClient:
             "rows": 60,
             "sort": "date",
         }
-        # Note: 'author' param might not be standard in 'list' cmd, validation needed.
-        # But 'search' works.
+
+        logger.info(
+            "Calling F95Zone Search",
+            extra={"url": self.LATEST_DATA_URL, "query": query},
+        )
 
         try:
             resp = self.session.get(self.LATEST_DATA_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
-            return data.get("msg", {}).get("data", [])
+
+            results = data.get("msg", {}).get("data", [])
+            logger.info(
+                "F95Zone Search Success",
+                extra={
+                    "status_code": resp.status_code,
+                    "query": query,
+                    "result_count": len(results),
+                },
+            )
+            return results
         except Exception as e:
-            logger.error(f"Search failed: {e}")
+            logger.error(
+                "Search failed", exc_info=True, extra={"query": query, "error": str(e)}
+            )
             return []

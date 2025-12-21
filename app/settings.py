@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     F95CHECKER_DAILY_LIMIT: int = 1000
     SYNC_INTERVAL_HOURS: int = 6
     LOG_LEVEL: str = "INFO"
+    LOG_JSON_FORMAT: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

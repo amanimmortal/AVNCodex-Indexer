@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from contextlib import asynccontextmanager
 from app.database import init_db
 from app.routers import games
@@ -12,7 +12,11 @@ from app.database import engine
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 import logging
+import time
+from app.logging_conf import configure_logging
 
+# Configure logging before app startup
+configure_logging()
 logger = logging.getLogger(__name__)
 
 scheduler = AsyncIOScheduler()
@@ -29,6 +33,7 @@ async def scheduled_update_task():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    logger.info("Application starting up...")
     await init_db()
 
     # Initialize Scheduler
@@ -51,10 +56,47 @@ async def lifespan(app: FastAPI):
 
     yield
     # Shutdown
+    logger.info("Application shutting down...")
     scheduler.shutdown()
 
 
 app = FastAPI(title="AVNCodex Indexer", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def logging_middleware(request: Request, call_next):
+    start_time = time.time()
+
+    # Process request
+    try:
+        response = await call_next(request)
+        process_time = time.time() - start_time
+
+        logger.info(
+            "Incoming Request",
+            extra={
+                "method": request.method,
+                "url": str(request.url),
+                "status_code": response.status_code,
+                "duration": f"{process_time:.4f}s",
+                "client": request.client.host if request.client else None,
+            },
+        )
+        return response
+    except Exception as e:
+        process_time = time.time() - start_time
+        logger.error(
+            "Request Failed",
+            exc_info=True,
+            extra={
+                "method": request.method,
+                "url": str(request.url),
+                "duration": f"{process_time:.4f}s",
+                "client": request.client.host if request.client else None,
+            },
+        )
+        raise e
+
 
 app.include_router(games.router)
 

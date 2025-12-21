@@ -12,25 +12,39 @@ class F95CheckerClient:
     def __init__(self):
         self.session = requests.Session()
         self.daily_limit = settings.F95CHECKER_DAILY_LIMIT
-        # In a real persistence scenario, we should track usage in DB or distinct file.
-        # For this MVP/Task, we'll keep a simple in-memory counter or just respect
-        # the user's wish to "configure" it (limit logic in orchestrator).
 
     def check_updates(self, thread_ids: List[int]) -> Dict[int, int]:
         """
         Bulk check for updates. Returns {thread_id: last_changed_timestamp}.
         """
-        # API takes comma separated IDs
         ids_str = ",".join(map(str, thread_ids))
         url = f"{self.BASE_URL}/fast"
+
+        logger.info(
+            "Calling F95Checker Fast Check",
+            extra={
+                "url": url,
+                "count": len(thread_ids),
+                "ids_preview": thread_ids[:5] if len(thread_ids) > 5 else thread_ids,
+            },
+        )
 
         try:
             resp = self.session.get(url, params={"ids": ids_str})
             resp.raise_for_status()
-            # Response: {"123": 123456789, ...}
-            return {int(k): v for k, v in resp.json().items()}
+
+            data = resp.json()
+            logger.info(
+                "F95Checker Fast Check Success",
+                extra={"status_code": resp.status_code, "response_count": len(data)},
+            )
+            return {int(k): v for k, v in data.items()}
         except Exception as e:
-            logger.error(f"F95Checker fast check failed: {e}")
+            logger.error(
+                "F95Checker fast check failed",
+                exc_info=True,
+                extra={"url": url, "error": str(e)},
+            )
             return {}
 
     def get_game_details(
@@ -40,10 +54,23 @@ class F95CheckerClient:
         Get full details. Requires timestamp from fast check.
         """
         url = f"{self.BASE_URL}/full/{thread_id}"
+        logger.info(
+            "Calling F95Checker Full Details",
+            extra={"url": url, "thread_id": thread_id, "timestamp": timestamp},
+        )
+
         try:
             resp = self.session.get(url, params={"ts": timestamp})
             resp.raise_for_status()
+            logger.info(
+                "F95Checker Full Details Success",
+                extra={"status_code": resp.status_code, "thread_id": thread_id},
+            )
             return resp.json()
         except Exception as e:
-            logger.error(f"F95Checker full details failed for {thread_id}: {e}")
+            logger.error(
+                f"F95Checker full details failed for {thread_id}",
+                exc_info=True,
+                extra={"url": url, "thread_id": thread_id, "error": str(e)},
+            )
             return None
