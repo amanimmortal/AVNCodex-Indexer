@@ -12,13 +12,19 @@ seed_service = SeedService()  # Instantiate singleton-ish service
 
 
 @router.post("/seed")
-async def seed_games(background_tasks: BackgroundTasks):
+async def seed_games(
+    background_tasks: BackgroundTasks,
+    reset: bool = Query(False, description="Reset seeding to page 1 and clear status"),
+):
     """
     Trigger the alphabetical background seeding task.
     """
     # SeedService manages its own session lifecycle inside run logic
-    background_tasks.add_task(seed_service.seed_loop)
-    return {"status": "Seeding started in background"}
+    background_tasks.add_task(seed_service.seed_loop, reset=reset)
+    status_msg = "Seeding started in background"
+    if reset:
+        status_msg += " (Reset to Page 1)"
+    return {"status": status_msg}
 
 
 @router.get("/seed")

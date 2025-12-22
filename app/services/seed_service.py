@@ -36,10 +36,11 @@ class SeedService:
                     state = json.load(f)
                     self.page = state.get("page", 1)
                     self.items_processed = state.get("items_processed", 0)
+                    self.enrichment_status = state.get("enrichment_status", "idle")
                     # If 'is_running' was True in the file, it means we shut down/crashed while running.
                     self.was_running_on_shutdown = state.get("is_running", False)
                     logger.info(
-                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}, Was Running: {self.was_running_on_shutdown}"
+                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}, Status {self.enrichment_status}, Was Running: {self.was_running_on_shutdown}"
                     )
         except Exception as e:
             logger.error(f"Failed to load seed state: {e}")
@@ -47,13 +48,16 @@ class SeedService:
     def _save_state(self):
         try:
             # Ensure dir exists (though main app likely created it for DB)
-            os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
+            dirname = os.path.dirname(STATE_FILE)
+            if dirname:
+                os.makedirs(dirname, exist_ok=True)
             with open(STATE_FILE, "w") as f:
                 json.dump(
                     {
                         "page": self.page,
                         "items_processed": self.items_processed,
                         "is_running": self.is_running,
+                        "enrichment_status": self.enrichment_status,
                     },
                     f,
                 )
@@ -69,7 +73,7 @@ class SeedService:
             "status": self.enrichment_status,
         }
 
-    async def seed_loop(self):
+    async def seed_loop(self, reset: bool = False):
         """
         The main background loop.
         Crawls F95Zone alphabetically to index ALL games.
@@ -78,9 +82,26 @@ class SeedService:
             logger.warning("Seed loop already running.")
             return
 
+        if reset:
+            self.page = 1
+            self.items_processed = 0
+            self.enrichment_status = "idle"
+            self._save_state()
+            logger.info("Seeding reset to Page 1.")
+
         self.is_running = True
         self._save_state()  # Persist running state
         self.last_error = None
+
+        if self.enrichment_status == "enriching":
+            logger.info("Resuming Enrichment Loop directly...")
+            await self.enrichment_loop()
+            # We assume enrichment loop manages is_running=False when done/error
+            # But if it returns, we should ensure cleanup
+            self.is_running = False
+            self._save_state()
+            return
+
         self.enrichment_status = "seeding"
         logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
 
@@ -215,6 +236,16 @@ class SeedService:
 
                 if not candidates:
                     logger.info("No more games to enrich. Enrichment loop finished.")
+
+                    # Auto-reset state for next run
+                    self.page = 1
+                    self.items_processed = 0
+                    self.enrichment_status = "idle"
+                    self.is_running = False
+                    self._save_state()
+                    logger.info(
+                        "Seed state auto-reset to Page 1 (Idle).Ready for next run."
+                    )
                     break
 
                 ids = [g.f95_id for g in candidates]
