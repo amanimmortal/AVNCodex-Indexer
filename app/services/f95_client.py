@@ -125,12 +125,12 @@ class F95ZoneClient:
                 return results
             else:
                 logger.error("API returned error status", extra={"response": data})
-                return []
+                return None
         except Exception as e:
             logger.error(
                 "Failed to fetch updates", exc_info=True, extra={"error": str(e)}
             )
-            return []
+            return None
 
     def search_games(
         self, query: str, author: Optional[str] = None

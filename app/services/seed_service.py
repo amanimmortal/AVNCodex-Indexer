@@ -124,12 +124,21 @@ class SeedService:
                     sort="title",
                 )
 
+                if games_data is None:
+                    # Error occurred (fetch failed)
+                    logger.error(
+                        f"Failed to fetch page {self.page}. Retrying in 60s..."
+                    )
+                    try:
+                        await asyncio.sleep(60)
+                    except asyncio.CancelledError:
+                        break
+                    continue
+
                 if not games_data:
-                    # End of list or error?
-                    # Check if error or just empty
-                    # For now, assume empty means done if page > 1
+                    # Empty list means END OF PAGINATION
                     logger.info(
-                        "No data returned. Seeding complete or error. Switching to Enrichment."
+                        "No data returned (Empty List). Seeding complete. Switching to Enrichment."
                     )
                     break
 
@@ -226,6 +235,7 @@ class SeedService:
         Slowly iterate through games that lack 'last_enriched' and fetch details from F95Checker.
         """
         self.enrichment_status = "enriching"
+        self._save_state()
         logger.info("Starting Slow Enrichment Loop...")
 
         while True:
