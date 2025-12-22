@@ -35,13 +35,15 @@ async def search_games(
     q: str = None,
     status: str = None,
     tags: List[str] = Query(None),
+    exclude_tags: List[str] = Query(None),
+    engine: int = None,
     updated_after: datetime = None,
     session: AsyncSession = Depends(get_session),
 ):
     service = GameService(session)
     # Use the hybrid search and index logic
     return await service.search_and_index(
-        q, status, tags, updated_after, background_tasks
+        q, status, tags, exclude_tags, engine, updated_after, background_tasks
     )
 
 

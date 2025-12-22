@@ -1,9 +1,10 @@
 import logging
 import json
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.future import select
+from sqlalchemy import not_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks
 from app.models import Game
@@ -122,6 +123,19 @@ class GameService:
         game.version = details.get("version") or game.version
         game.status = str(details.get("status"))
 
+        # Populate IDs
+        if details.get("type"):
+            try:
+                game.type_id = int(details.get("type"))
+            except (ValueError, TypeError):
+                pass
+
+        if details.get("status"):
+            try:
+                game.status_id = int(details.get("status"))
+            except (ValueError, TypeError):
+                pass
+
         # Date Logic: Prefer 'last_updated' from full details (actual index time)
         # over 'ts' (fast check time), which might just be a staleness check.
         if details.get("last_updated"):
@@ -144,8 +158,8 @@ class GameService:
                 f"Field 'last_updated' missing, using FAST check time: {game.f95_last_update}"
             )
 
-        game.last_updated_at = datetime.utcnow()
-        game.last_enriched = datetime.utcnow()
+        game.last_updated_at = datetime.now(timezone.utc)
+        game.last_enriched = datetime.now(timezone.utc)
 
         # Tags update
         if details.get("tags"):
@@ -190,6 +204,8 @@ class GameService:
         query: str = None,
         status: str = None,
         tags: List[str] = None,
+        exclude_tags: List[str] = None,
+        engine: int = None,
         updated_after: datetime = None,
         background_tasks: BackgroundTasks = None,
     ) -> List[Game]:
@@ -202,11 +218,26 @@ class GameService:
             stmt = stmt.where(Game.name.ilike(f"%{query}%"))
 
         if status:
-            stmt = stmt.where(Game.status == status)
+            # Try to filter by status_id if status is an integer string
+            if status.isdigit():
+                stmt = stmt.where(Game.status_id == int(status))
+            else:
+                stmt = stmt.where(Game.status == status)
+
+        if engine:
+            stmt = stmt.where(Game.type_id == engine)
 
         if tags:
             for tag in tags:
                 stmt = stmt.where(Game.tags.contains(tag))
+
+        if exclude_tags:
+            for tag in exclude_tags:
+                # Ensure we handle NULL tags (keep them)
+                # Use explicit NOT LIKE to be safe
+                stmt = stmt.where(
+                    or_(Game.tags.is_(None), Game.tags.notlike(f"%{tag}%"))
+                )
 
         if updated_after:
             stmt = stmt.where(Game.f95_last_update >= updated_after)
@@ -455,9 +486,21 @@ class GameService:
                     or game.cover_url
                 )
                 game.status = str(details.get("status"))
+                if details.get("type"):
+                    try:
+                        game.type_id = int(details.get("type"))
+                    except (ValueError, TypeError):
+                        pass
+
+                if details.get("status"):
+                    try:
+                        game.status_id = int(details.get("status"))
+                    except (ValueError, TypeError):
+                        pass
+
                 game.tags = json.dumps(details.get("tags") or [])
                 game.details_json = json.dumps(details)
-                game.last_enriched = datetime.utcnow()
+                game.last_enriched = datetime.now(timezone.utc)
                 game.f95_last_update = datetime.fromtimestamp(timestamps[thread_id])
 
                 self.session.add(game)

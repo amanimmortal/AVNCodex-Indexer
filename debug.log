@@ -1,0 +1,8 @@
+DEBUG: Games in DB: ['RenPy Game', 'Unity Game', 'Spanking Game']
+DEBUG: Game 1: type_id=14, tags=["4", "134"]
+DEBUG: Game 2: type_id=19, tags=["4"]
+DEBUG: Game 3: type_id=14, tags=["4", "119"]
+DEBUG: Test A Results: ['RenPy Game', 'Spanking Game']
+DEBUG: Test B1 Results: ['RenPy Game', 'Spanking Game']
+DEBUG: Test B2 Results: ['RenPy Game']
+DEBUG: Test C Results: ['RenPy Game']

@@ -1,6 +1,6 @@
 from sqlmodel import SQLModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Game(SQLModel, table=True):
@@ -22,11 +22,15 @@ class Game(SQLModel, table=True):
     # Rich Details (F95Checker ONLY)
     tags: Optional[str] = None  # JSON List[str]
     status: Optional[str] = None
+    type_id: Optional[int] = Field(default=None, index=True)
+    status_id: Optional[int] = Field(default=None, index=True)
     details_json: Optional[str] = None
     last_enriched: Optional[datetime] = None
 
     # Internal Timestamps
-    last_updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_updated_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
 
     @property
     def id(self) -> int:
