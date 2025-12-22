@@ -14,7 +14,7 @@ def configure_logging():
     json_format = settings.LOG_JSON_FORMAT
 
     # Create logs directory if it doesn't exist
-    log_dir = Path("data/logs")
+    log_dir = Path(settings.LOG_DIR)
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # Handlers config
@@ -27,7 +27,7 @@ def configure_logging():
         "file": {
             "level": log_level,
             "class": "logging.handlers.RotatingFileHandler",
-            "filename": "data/logs/app.json",
+            "filename": str(log_dir / "app.json"),
             "mode": "a",
             "maxBytes": 10 * 1024 * 1024,  # 10MB
             "backupCount": 5,

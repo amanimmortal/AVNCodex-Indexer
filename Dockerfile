@@ -32,6 +32,7 @@ COPY --chmod=755 docker-entrypoint.sh /app/docker-entrypoint.sh
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 ENV DATABASE_URL="sqlite+aiosqlite:////data/avn_index.db"
+ENV LOG_DIR="/data/logs"
 
 EXPOSE 8000
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     SYNC_INTERVAL_HOURS: int = 6
     LOG_LEVEL: str = "INFO"
     LOG_JSON_FORMAT: bool = True
+    LOG_DIR: str = "data/logs"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
