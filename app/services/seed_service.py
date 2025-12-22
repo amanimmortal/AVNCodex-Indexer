@@ -120,6 +120,8 @@ class SeedService:
         self.enrichment_status = "seeding"
         logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
 
+        previous_page_ids = set()
+
         try:
             # Authenticate first
             logger.info("Authenticating with F95Zone...")
@@ -154,6 +156,19 @@ class SeedService:
                         "No data returned (Empty List). Seeding complete. Switching to Enrichment."
                     )
                     break
+
+                # CHECK FOR INFINITE LOOP (Identical Page Content)
+                # F95Zone API tends to return the last page repeatedly if you go past end
+                current_ids = {
+                    g.get("thread_id") for g in games_data if g.get("thread_id")
+                }
+                if previous_page_ids and current_ids == previous_page_ids:
+                    logger.warning(
+                        f"Page {self.page} content is IDENTICAL to previous page. "
+                        "End of pagination detected (Infinite Loop Protection)."
+                    )
+                    break
+                previous_page_ids = current_ids
 
                 # 2. Upsert Games
                 async with AsyncSessionLocal() as session:
