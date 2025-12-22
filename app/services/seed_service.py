@@ -78,16 +78,18 @@ class SeedService:
         The main background loop.
         Crawls F95Zone alphabetically to index ALL games.
         """
-        if self.is_running:
-            logger.warning("Seed loop already running.")
-            return
-
         if reset:
             self.page = 1
             self.items_processed = 0
             self.enrichment_status = "idle"
             self._save_state()
             logger.info("Seeding reset to Page 1.")
+
+        if self.is_running:
+            logger.warning(
+                "Seed loop already running. State has been reset if requested."
+            )
+            return
 
         self.is_running = True
         self._save_state()  # Persist running state
@@ -159,6 +161,8 @@ class SeedService:
                     break
 
             # Start Enrichment Phase
+            self.page = 1
+            self._save_state()
             await self.enrichment_loop()
 
         except Exception as e:
