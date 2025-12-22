@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy.future import select
-from sqlalchemy import not_, or_
+from sqlalchemy import or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks
 from app.models import Game
@@ -110,13 +110,13 @@ class GameService:
                     self.checker_client.get_game_details, tid, ts
                 )
                 if details:
-                    self._update_game_with_checker_details(game, details, ts)
+                    self.update_game_with_checker_details(game, details, ts)
                     count += 1
 
         await self.session.commit()
         logger.info(f"Synced {count} tracked games.")
 
-    def _update_game_with_checker_details(self, game: Game, details: dict, ts: int):
+    def update_game_with_checker_details(self, game: Game, details: dict, ts: int):
         """
         Merge F95Checker details into game object.
         """
@@ -301,7 +301,7 @@ class GameService:
                     if details:
                         # We reuse the helper, ensuring the object in session is updated
                         game = games_map[gid]
-                        self._update_game_with_checker_details(game, details, ts)
+                        self.update_game_with_checker_details(game, details, ts)
 
                 # Commit updates before returning
                 await self.session.commit()
@@ -376,7 +376,7 @@ class GameService:
                             self.checker_client.get_game_details, game.f95_id, ts
                         )
                         if details:
-                            self._update_game_with_checker_details(game, details, ts)
+                            self.update_game_with_checker_details(game, details, ts)
                             updates_count += 1
 
                 if updates_count > 0:
