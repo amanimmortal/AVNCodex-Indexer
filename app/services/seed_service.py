@@ -45,24 +45,35 @@ class SeedService:
         except Exception as e:
             logger.error(f"Failed to load seed state: {e}")
 
-    def _save_state(self):
+    async def _save_state(self):
         try:
-            # Ensure dir exists (though main app likely created it for DB)
-            dirname = os.path.dirname(STATE_FILE)
-            if dirname:
-                os.makedirs(dirname, exist_ok=True)
-            with open(STATE_FILE, "w") as f:
-                json.dump(
-                    {
-                        "page": self.page,
-                        "items_processed": self.items_processed,
-                        "is_running": self.is_running,
-                        "enrichment_status": self.enrichment_status,
-                    },
-                    f,
-                )
+            # Ensure dir exists
+            from pathlib import Path
+
+            path = Path(STATE_FILE).resolve()
+            path.parent.mkdir(parents=True, exist_ok=True)
+
+            temp_path = path.with_suffix(".tmp")
+
+            # Atomic write: Write to temp -> Rename
+            # Use run_in_executor for file I/O to avoid blocking loop
+            await asyncio.to_thread(self._write_file_atomic, path, temp_path)
+
         except Exception as e:
             logger.error(f"Failed to save seed state: {e}")
+
+    def _write_file_atomic(self, path, temp_path):
+        with open(temp_path, "w") as f:
+            json.dump(
+                {
+                    "page": self.page,
+                    "items_processed": self.items_processed,
+                    "is_running": self.is_running,
+                    "enrichment_status": self.enrichment_status,
+                },
+                f,
+            )
+        os.replace(temp_path, path)
 
     def get_status(self):
         return {
@@ -78,11 +89,13 @@ class SeedService:
         The main background loop.
         Crawls F95Zone alphabetically to index ALL games.
         """
+        interrupted = False
         if reset:
             self.page = 1
             self.items_processed = 0
             self.enrichment_status = "idle"
-            self._save_state()
+            self.enrichment_status = "idle"
+            await self._save_state()
             logger.info("Seeding reset to Page 1.")
 
         if self.is_running:
@@ -92,7 +105,7 @@ class SeedService:
             return
 
         self.is_running = True
-        self._save_state()  # Persist running state
+        await self._save_state()  # Persist running state
         self.last_error = None
 
         if self.enrichment_status == "enriching":
@@ -101,7 +114,7 @@ class SeedService:
             # We assume enrichment loop manages is_running=False when done/error
             # But if it returns, we should ensure cleanup
             self.is_running = False
-            self._save_state()
+            await self._save_state()
             return
 
         self.enrichment_status = "seeding"
@@ -155,33 +168,43 @@ class SeedService:
 
                 # 3. Pagination & Sleep
                 self.page += 1
-                self._save_state()  # Save progress
+                await self._save_state()  # Save progress
 
                 # Check "Total Pages" if available in response?
                 # Client returns list, not full dict with pagination metadata.
                 # Use empty list check as break condition for now.
 
                 # Sleep configurable delay
-                logger.info(f"Sleeping {settings.SEED_PAGE_DELAY} seconds...")
-                try:
-                    await asyncio.sleep(settings.SEED_PAGE_DELAY)
-                except asyncio.CancelledError:
-                    logger.info("Seeding cancelled during sleep.")
-                    break
+                await asyncio.sleep(settings.SEED_PAGE_DELAY)
 
             # Start Enrichment Phase
+            # We ONLY reach here if we break from the while loop explicitly (Empty List)
+            logger.info("Seeding Phase Complete. Transitioning to Enrichment.")
             self.page = 1
-            self._save_state()
+            await self._save_state()
             await self.enrichment_loop()
 
+        except asyncio.CancelledError:
+            interrupted = True
+            logger.info(
+                "Seed loop cancelled (Shutdown detected). Preserving state for resume."
+            )
         except Exception as e:
             self.last_error = str(e)
             logger.error(f"Seeding crashed: {e}")
         finally:
-            self.is_running = False
-            self.enrichment_status = "idle"
-            self._save_state()  # Persist stopped state
-            logger.info("Seed loop stopped.")
+            if interrupted:
+                # Force Running=True so main.py resumes it next boot
+                self.is_running = True
+            else:
+                # Normal exit or crash
+                if self.is_running:
+                    logger.warning("Seed loop exited unexpectedly. Forcing stop.")
+                    self.is_running = False
+                    self.enrichment_status = "idle"
+
+            await self._save_state()
+            logger.info(f"Seed loop stopped. (Interrupted={interrupted})")
 
     async def _upsert_game_basic(self, session: AsyncSession, data: dict):
         """
@@ -235,7 +258,7 @@ class SeedService:
         Slowly iterate through games that lack 'last_enriched' and fetch details from F95Checker.
         """
         self.enrichment_status = "enriching"
-        self._save_state()
+        await self._save_state()
         logger.info("Starting Slow Enrichment Loop...")
 
         while True:
@@ -256,7 +279,7 @@ class SeedService:
                     self.items_processed = 0
                     self.enrichment_status = "idle"
                     self.is_running = False
-                    self._save_state()
+                    await self._save_state()
                     logger.info(
                         "Seed state auto-reset to Page 1 (Idle).Ready for next run."
                     )
@@ -331,7 +354,4 @@ class SeedService:
 
             # 4. Long Sleep between batches
             logger.info("Enrichment batch done. Sleeping 60 seconds...")
-            try:
-                await asyncio.sleep(60)
-            except asyncio.CancelledError:
-                break
+            await asyncio.sleep(60)
