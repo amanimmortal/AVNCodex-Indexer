@@ -16,36 +16,52 @@ class F95CheckerClient:
     def check_updates(self, thread_ids: List[int]) -> Dict[int, int]:
         """
         Bulk check for updates. Returns {thread_id: last_changed_timestamp}.
+        Automatically batches requests in groups of 10 to respect API limits.
         """
-        ids_str = ",".join(map(str, thread_ids))
+        results = {}
+        chunk_size = 10
         url = f"{self.BASE_URL}/fast"
 
-        logger.info(
-            "Calling F95Checker Fast Check",
-            extra={
-                "url": url,
-                "count": len(thread_ids),
-                "ids_preview": thread_ids[:5] if len(thread_ids) > 5 else thread_ids,
-            },
-        )
+        for i in range(0, len(thread_ids), chunk_size):
+            chunk = thread_ids[i : i + chunk_size]
+            ids_str = ",".join(map(str, chunk))
 
-        try:
-            resp = self.session.get(url, params={"ids": ids_str})
-            resp.raise_for_status()
-
-            data = resp.json()
             logger.info(
-                "F95Checker Fast Check Success",
-                extra={"status_code": resp.status_code, "response_count": len(data)},
+                f"Calling F95Checker Fast Check (Batch {i // chunk_size + 1})",
+                extra={
+                    "url": url,
+                    "count": len(chunk),
+                    "ids_preview": chunk,
+                },
             )
-            return {int(k): v for k, v in data.items()}
-        except Exception as e:
-            logger.error(
-                "F95Checker fast check failed",
-                exc_info=True,
-                extra={"url": url, "error": str(e)},
-            )
-            return {}
+
+            try:
+                resp = self.session.get(url, params={"ids": ids_str})
+                resp.raise_for_status()
+
+                data = resp.json()
+
+                # Merge results
+                batch_results = {int(k): v for k, v in data.items()}
+                results.update(batch_results)
+
+                logger.info(
+                    "F95Checker Fast Check Batch Success",
+                    extra={
+                        "status_code": resp.status_code,
+                        "response_count": len(batch_results),
+                    },
+                )
+
+            except Exception as e:
+                logger.error(
+                    "F95Checker fast check failed for batch",
+                    exc_info=True,
+                    extra={"url": url, "batch": chunk, "error": str(e)},
+                )
+                # Continue processing other batches even if one fails
+
+        return results
 
     def get_game_details(
         self, thread_id: int, timestamp: int
