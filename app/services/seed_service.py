@@ -273,6 +273,9 @@ class SeedService:
         Slowly iterate through games that lack 'last_enriched' and fetch details from F95Checker.
         """
         self.enrichment_status = "enriching"
+        # Reset page to 1 for "Batch 1" visualization, but keep items_processed from seeding phase
+        # or should we count items processed IN TOTAL? Yes, let's keep adding to it.
+        self.page = 1
         await self._save_state()
         logger.info("Starting Slow Enrichment Loop...")
 
@@ -301,7 +304,7 @@ class SeedService:
                     break
 
                 ids = [g.f95_id for g in candidates]
-                logger.info(f"Enriching batch of {len(ids)} games: {ids}")
+                logger.info(f"Enriching batch {self.page} of {len(ids)} games: {ids}")
 
                 # 2. Fast Check (1 API Call)
                 try:
@@ -363,6 +366,11 @@ class SeedService:
                             session.add(game)
 
                     await session.commit()
+
+                    # Update Progress
+                    self.items_processed += len(candidates)
+                    self.page += 1
+                    await self._save_state()
 
                 except Exception as e:
                     logger.error(f"Enrichment batch failed: {e}")
