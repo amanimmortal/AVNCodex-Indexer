@@ -152,10 +152,10 @@ class SeedService:
                 # Client returns list, not full dict with pagination metadata.
                 # Use empty list check as break condition for now.
 
-                # Sleep 5 minutes
-                logger.info("Sleeping 5 minutes...")
+                # Sleep configurable delay
+                logger.info(f"Sleeping {settings.SEED_PAGE_DELAY} seconds...")
                 try:
-                    await asyncio.sleep(300)
+                    await asyncio.sleep(settings.SEED_PAGE_DELAY)
                 except asyncio.CancelledError:
                     logger.info("Seeding cancelled during sleep.")
                     break

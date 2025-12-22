@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_JSON_FORMAT: bool = True
     LOG_DIR: str = "data/logs"
+    SEED_PAGE_DELAY: int = 45
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
