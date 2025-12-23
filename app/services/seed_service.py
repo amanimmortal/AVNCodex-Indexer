@@ -27,6 +27,8 @@ class SeedService:
         self.items_processed = 0
         self.last_error = None
         self.was_running_on_shutdown = False
+        self.max_processed_id = 0
+        self.last_run_completion_time = 0.0
         self._load_state()
 
     def _load_state(self):
@@ -39,8 +41,13 @@ class SeedService:
                     self.enrichment_status = state.get("enrichment_status", "idle")
                     # If 'is_running' was True in the file, it means we shut down/crashed while running.
                     self.was_running_on_shutdown = state.get("is_running", False)
+                    self.max_processed_id = state.get("max_processed_id", 0)
+                    self.last_run_completion_time = state.get(
+                        "last_run_completion_time", 0.0
+                    )
                     logger.info(
-                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}, Status {self.enrichment_status}, Was Running: {self.was_running_on_shutdown}"
+                        f"Loaded seed state: Page {self.page}, Items {self.items_processed}, Status {self.enrichment_status}, "
+                        f"MaxID {self.max_processed_id}, LastRun {self.last_run_completion_time}"
                     )
         except Exception as e:
             logger.error(f"Failed to load seed state: {e}")
@@ -70,6 +77,8 @@ class SeedService:
                     "items_processed": self.items_processed,
                     "is_running": self.is_running,
                     "enrichment_status": self.enrichment_status,
+                    "max_processed_id": self.max_processed_id,
+                    "last_run_completion_time": self.last_run_completion_time,
                 },
                 f,
             )
@@ -82,21 +91,29 @@ class SeedService:
             "items_processed": self.items_processed,
             "last_error": str(self.last_error) if self.last_error else None,
             "status": self.enrichment_status,
+            "max_processed_id": self.max_processed_id,
+            "last_run_completion_time": self.last_run_completion_time,
         }
 
     async def seed_loop(self, reset: bool = False):
         """
         The main background loop.
-        Crawls F95Zone alphabetically to index ALL games.
+        Modes:
+        1. Full Reset (reset=True): Alphabetical scan (sort='title'), wipes state, indexes EVERYTHING.
+        2. Incremental (reset=False): Date scan (sort='date'), only updates new games (id > max),
+           stops when reaching previous run time.
         """
         interrupted = False
+        import time
+
         if reset:
             self.page = 1
             self.items_processed = 0
             self.enrichment_status = "idle"
-            self.enrichment_status = "idle"
+            self.max_processed_id = 0
+            self.last_run_completion_time = 0.0
             await self._save_state()
-            logger.info("Seeding reset to Page 1.")
+            logger.info("Seeding reset to Page 1 (Full Reseed).")
 
         if self.is_running:
             logger.warning(
@@ -111,36 +128,47 @@ class SeedService:
         if self.enrichment_status == "enriching":
             logger.info("Resuming Enrichment Loop directly...")
             await self.enrichment_loop()
-            # We assume enrichment loop manages is_running=False when done/error
-            # But if it returns, we should ensure cleanup
             self.is_running = False
             await self._save_state()
             return
 
         self.enrichment_status = "seeding"
-        logger.info(f"Starting Alphabetical Seed Loop from Page {self.page}...")
+
+        # DETERMINE MODE
+        # If we have a last_run_time and NOT resetting, we do Incremental
+        # Otherwise (reset=True or fresh install), we do Full (Title Sort)
+        is_incremental = (not reset) and (self.last_run_completion_time > 0)
+        sort_mode = "date" if is_incremental else "title"
+
+        logger.info(
+            f"Starting Seed Loop. Mode={'Incremental' if is_incremental else 'Full'} (Sort={sort_mode}). Page {self.page}..."
+        )
+        if is_incremental:
+            logger.info(
+                f"Incremental Constraints: Skip ID <= {self.max_processed_id}, Stop if Date < {self.last_run_completion_time}"
+            )
 
         previous_page_ids = set()
+
+        # Track start time to update last_run_completion_time ONLY on success
+        run_start_time = time.time()
 
         try:
             # Authenticate first
             logger.info("Authenticating with F95Zone...")
-            # Run blocking login in thread
             await asyncio.to_thread(self.client.login)
 
             while True:
                 # 1. Fetch Page
-                logger.info(f"Seeding Page {self.page} (sort=title)...")
-                # Run sync client in thread to avoid blocking main loop
+                logger.info(f"Seeding Page {self.page} (sort={sort_mode})...")
                 games_data = await asyncio.to_thread(
                     self.client.get_latest_updates,
                     page=self.page,
                     rows=60,
-                    sort="title",
+                    sort=sort_mode,
                 )
 
                 if games_data is None:
-                    # Error occurred (fetch failed)
                     logger.error(
                         f"Failed to fetch page {self.page}. Retrying in 60s..."
                     )
@@ -151,70 +179,105 @@ class SeedService:
                     continue
 
                 if not games_data:
-                    # Empty list means END OF PAGINATION
-                    logger.info(
-                        "No data returned (Empty List). Seeding complete. Switching to Enrichment."
-                    )
+                    logger.info("No data returned (Empty List). Seeding complete.")
                     break
 
-                # CHECK FOR INFINITE LOOP (Identical Page Content)
-                # F95Zone API tends to return the last page repeatedly if you go past end
+                # CHECK FOR INFINITE LOOP
                 current_ids = {
                     g.get("thread_id") for g in games_data if g.get("thread_id")
                 }
                 if previous_page_ids and current_ids == previous_page_ids:
-                    logger.warning(
-                        f"Page {self.page} content is IDENTICAL to previous page. "
-                        "End of pagination detected (Infinite Loop Protection)."
-                    )
+                    logger.warning("Page content IDENTICAL to previous. Breaking loop.")
                     break
                 previous_page_ids = current_ids
 
                 # 2. Upsert Games
                 async with AsyncSessionLocal() as session:
                     count = 0
+                    skipped_old = 0
+                    stop_signal = False
+
                     for data in games_data:
+                        tid = data.get("thread_id")
+                        if not tid:
+                            continue
+                        tid = int(tid)
+
+                        # PARSE DATE for stop condition
+                        # Try 'ts' (float) then 'date' (usually string relative, but sometimes absolute?)
+                        # We prefer 'ts'
+                        game_ts = 0.0
+                        if data.get("ts"):
+                            try:
+                                game_ts = float(data["ts"])
+                            except (ValueError, TypeError):
+                                pass
+
+                        if is_incremental:
+                            # STOP LOGIC: If game update time is older than our last run, we are done.
+                            # We buffer slightly (e.g. strict <)
+                            if game_ts > 0 and game_ts < self.last_run_completion_time:
+                                logger.info(
+                                    f"Stop Condition Met: Game {tid} ts {game_ts} < Last Run {self.last_run_completion_time}"
+                                )
+                                stop_signal = True
+                                break
+
+                            # SKIP LOGIC: If game ID is old, we don't need to check it
+                            # (Assuming we only want NEW games as per user request)
+                            if tid <= self.max_processed_id:
+                                skipped_old += 1
+                                continue
+
                         await self._upsert_game_basic(session, data)
                         count += 1
+
+                        # Update max_processed_id on the fly
+                        if tid > self.max_processed_id:
+                            self.max_processed_id = tid  # Update in memory immediately
+
                     await session.commit()
 
                 self.items_processed += count
-                logger.info(f"Upserted {count} games from page {self.page}.")
+                logger.info(
+                    f"Page {self.page}: Upserted {count}, Skipped {skipped_old} (Old). MaxID: {self.max_processed_id}"
+                )
+
+                if stop_signal:
+                    logger.info("Incremental Seeding Finished (Time limit reached).")
+                    break
 
                 # 3. Pagination & Sleep
                 self.page += 1
-                await self._save_state()  # Save progress
-
-                # Check "Total Pages" if available in response?
-                # Client returns list, not full dict with pagination metadata.
-                # Use empty list check as break condition for now.
-
-                # Sleep configurable delay
+                await self._save_state()
                 await asyncio.sleep(settings.SEED_PAGE_DELAY)
 
-            # Start Enrichment Phase
-            # We ONLY reach here if we break from the while loop explicitly (Empty List)
+            # END OF LOOP
+
+            # If we finished successfully (break), update last_run_time
+            # ONLY if we actually did something or verified checks.
+            # If we were in incremental mode, we just caught up.
+            # If full mode, we indexed everything.
+            self.last_run_completion_time = run_start_time
+
             logger.info("Seeding Phase Complete. Transitioning to Enrichment.")
+
+            # Reset page for enrichment
             self.page = 1
             await self._save_state()
             await self.enrichment_loop()
 
         except asyncio.CancelledError:
             interrupted = True
-            logger.info(
-                "Seed loop cancelled (Shutdown detected). Preserving state for resume."
-            )
+            logger.info("Seed loop cancelled (Shutdown detected).")
         except Exception as e:
             self.last_error = str(e)
             logger.error(f"Seeding crashed: {e}")
         finally:
             if interrupted:
-                # Force Running=True so main.py resumes it next boot
-                self.is_running = True
+                self.is_running = True  # Resume next time
             else:
-                # Normal exit or crash
                 if self.is_running:
-                    logger.warning("Seed loop exited unexpectedly. Forcing stop.")
                     self.is_running = False
                     self.enrichment_status = "idle"
 
