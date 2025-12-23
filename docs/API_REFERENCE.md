@@ -31,9 +31,15 @@ Search for a game by name or browse the local library with filters.
     - `tags` (list[string], optional): Filter by Tag ID. (e.g., `tags=4&tags=134`).
     - `exclude_tags` (list[string], optional): Filter by **Excluding** Tag ID. (e.g., `exclude_tags=119`).
     - `updated_after` (string, optional): Filter for games updated after this date (ISO 8601, e.g., "2024-01-01").
+    - `page` (int, optional): Page number (default: 1).
+    - `limit` (int, optional): Items per page (default: 30, max: 100).
+    - `sort_by` (string, optional): Sort field (`name`, `updated_at`, `rating`, `likes`). Default: `updated_at`.
+    - `sort_dir` (string, optional): Sort direction (`asc`, `desc`). Default: `desc`.
 - **Example (Advanced)**:
     - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking]
-    - *URL*: `/games/search?engine=14&status=1&tags=4&tags=134&exclude_tags=119`
+    - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking], Page 2
+    - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking], Page 2, Sort by Rating DESC
+    - *URL*: `/games/search?engine=14&status=1&tags=4&tags=134&exclude_tags=119&page=2&limit=30&sort_by=rating&sort_dir=desc`
 - **Returns**: JSON Array of [Game Objects](#game-object-model).
 
 ### 2. Get Game Details

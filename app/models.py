@@ -24,6 +24,8 @@ class Game(SQLModel, table=True):
     status: Optional[str] = None
     type_id: Optional[int] = Field(default=None, index=True)
     status_id: Optional[int] = Field(default=None, index=True)
+    rating: Optional[float] = Field(default=None, index=True)
+    likes: Optional[int] = Field(default=None, index=True)
     details_json: Optional[str] = None
     last_enriched: Optional[datetime] = None
 

@@ -1,7 +1,7 @@
 import logging
 import json
 import asyncio
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.future import select
 from sqlalchemy import or_
@@ -12,6 +12,7 @@ from app.services.f95_client import F95ZoneClient
 from app.services.rss_client import RSSClient
 from app.services.f95checker_client import F95CheckerClient
 from app.database import AsyncSessionLocal
+from app.settings import settings
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +137,18 @@ class GameService:
             except (ValueError, TypeError):
                 pass
 
+        if details.get("rating"):
+            try:
+                game.rating = float(details.get("rating"))
+            except (ValueError, TypeError):
+                pass
+
+        if details.get("likes"):
+            try:
+                game.likes = int(details.get("likes"))
+            except (ValueError, TypeError):
+                pass
+
         # Date Logic: Prefer 'last_updated' from full details (actual index time)
         # over 'ts' (fast check time), which might just be a staleness check.
         if details.get("last_updated"):
@@ -208,9 +221,14 @@ class GameService:
         engine: int = None,
         updated_after: datetime = None,
         background_tasks: BackgroundTasks = None,
+        page: int = 1,
+        limit: int = 30,
+        sort_by: str = "updated_at",
+        sort_dir: str = "desc",
     ) -> List[Game]:
         """
         Refactored Search Logic (Local First with Remote Fallback).
+        Supports Pagination, Freshness Caching, and Sorting.
         """
         # 1. Local Search (Priority)
         stmt = select(Game)
@@ -242,21 +260,60 @@ class GameService:
         if updated_after:
             stmt = stmt.where(Game.f95_last_update >= updated_after)
 
-        # Enforce Limit
-        stmt = stmt.limit(60)
+        # Sorting Logic
+        if sort_by == "name":
+            sort_col = Game.name
+        elif sort_by == "rating":
+            sort_col = Game.rating
+        elif sort_by == "likes":
+            sort_col = Game.likes
+        else:
+            # Default to updated_at
+            sort_col = Game.f95_last_update
+
+        if sort_dir == "asc":
+            stmt = stmt.order_by(sort_col.asc().nulls_last())
+        else:
+            stmt = stmt.order_by(sort_col.desc().nulls_last())
+
+        # Enforce Pagination
+        offset = (page - 1) * limit
+        stmt = stmt.offset(offset).limit(limit)
 
         result = await self.session.execute(stmt)
         local_results = result.scalars().all()
 
         if local_results:
-            logger.info(f"Local hit: {len(local_results)} matches.")
+            logger.info(f"Local hit: {len(local_results)} matches (Page {page}).")
 
-            # --- Synchronous Freshness Check ---
-            # We want to check if any of these are stale and need immediate enrichment.
+            # --- Synchronous Freshness Check (Optimized) ---
             games_map = {g.f95_id: g for g in local_results}
-            ids_to_check = list(games_map.keys())
+
+            # Optimization: Only check items that haven't been enriched recently
+            # "Recently" defined by settings.SEARCH_FRESHNESS_DAYS (default 7 days)
+            now_utc = datetime.now(timezone.utc)
+            cutoff_date = now_utc - timedelta(days=settings.SEARCH_FRESHNESS_DAYS)
+
+            # Filter candidates
+            ids_to_check = []
+            for g in local_results:
+                if not g.last_enriched:
+                    ids_to_check.append(g.f95_id)
+                elif g.last_enriched < cutoff_date:
+                    ids_to_check.append(g.f95_id)
+
+            if not ids_to_check:
+                logger.info(
+                    "All results are fresh per cached policy. Skipping API check."
+                )
+                return local_results
+
+            logger.info(
+                f"Freshness Check: Checking {len(ids_to_check)}/{len(local_results)} items (others cached < {settings.SEARCH_FRESHNESS_DAYS} days)"
+            )
 
             # 1. Fast Check
+
             timestamps_map = await asyncio.to_thread(
                 self.checker_client.check_updates, ids_to_check
             )
@@ -321,8 +378,8 @@ class GameService:
                 self.f95_client.search_games, query
             )
 
-            # Limit Remote Results to 60 as well
-            remote_matches = remote_matches[:60]
+            # Limit Remote Results based on requested limit
+            remote_matches = remote_matches[:limit]
 
             saved_games = []
             for data in remote_matches:

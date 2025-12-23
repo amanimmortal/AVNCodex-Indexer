@@ -34,7 +34,13 @@ async def scheduled_update_task():
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Application starting up...")
+    logger.info("Application starting up...")
     await init_db()
+
+    # Run Backfill
+    from app.database import backfill_ratings
+
+    asyncio.create_task(backfill_ratings())
 
     # Initialize Scheduler
     from app.settings import settings
