@@ -26,8 +26,10 @@ Search for a game by name or browse the local library with filters.
     - **Without `q`**: Browses/Filters the **Local DB** only.
 - **Params**: 
     - `q` (string, optional): The search query (e.g., "Eternum").
-    - `status` (string, optional): Filter by **Status ID**. (e.g., `1` for Ongoing).
-    - `engine` (int, optional): Filter by **Type ID**. (e.g., `14` for RenPy, `19` for Unity).
+    - `status` (list[string], optional): Filter by **Status ID/Name** (Inclusion). (e.g., `status=Completed&status=Ongoing` or `status=1`).
+    - `exclude_status` (list[string], optional): Filter by **Status ID/Name** (Exclusion). (e.g., `exclude_status=Abandoned`).
+    - `engine` (list[int], optional): Filter by **Type ID** (Inclusion). (e.g., `engine=14&engine=19`).
+    - `exclude_engine` (list[int], optional): Filter by **Type ID** (Exclusion). (e.g., `exclude_engine=4`).
     - `tags` (list[string], optional): Filter by Tag ID. (e.g., `tags=4&tags=134`).
     - `exclude_tags` (list[string], optional): Filter by **Excluding** Tag ID. (e.g., `exclude_tags=119`).
     - `updated_after` (string, optional): Filter for games updated after this date (ISO 8601, e.g., "2024-01-01").
@@ -36,8 +38,8 @@ Search for a game by name or browse the local library with filters.
     - `sort_by` (string, optional): Sort field (`name`, `updated_at`, `rating`, `likes`). Default: `updated_at`.
     - `sort_dir` (string, optional): Sort direction (`asc`, `desc`). Default: `desc`.
 - **Example (Advanced)**:
-    - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking], Page 2, Sort by Rating DESC
-    - *URL*: `/games/search?engine=14&status=1&tags=4&tags=134&exclude_tags=119&page=2&limit=30&sort_by=rating&sort_dir=desc`
+    - *Query*: Engine = RenPy OR Unity, Status = Ongoing OR Completed, Exclude Status = Abandoned, Tags = [3dcg], Exclude Tags = [spanking]
+    - *URL*: `/games/search?engine=14&engine=19&status=1&status=Completed&exclude_status=Abandoned&tags=4&exclude_tags=119`
 - **Returns**: JSON Array of [Game Objects](#game-object-model).
 
 ### 2. Get Game Details

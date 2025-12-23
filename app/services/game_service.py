@@ -219,10 +219,12 @@ class GameService:
     async def search_and_index(
         self,
         query: str = None,
-        status: str = None,
+        status: List[str] = None,
+        exclude_status: List[str] = None,
         tags: List[str] = None,
         exclude_tags: List[str] = None,
-        engine: int = None,
+        engine: List[int] = None,
+        exclude_engine: List[int] = None,
         updated_after: datetime = None,
         background_tasks: BackgroundTasks = None,
         page: int = 1,
@@ -239,15 +241,47 @@ class GameService:
         if query:
             stmt = stmt.where(Game.name.ilike(f"%{query}%"))
 
+        # --- Status Filtering ---
         if status:
-            # Try to filter by status_id if status is an integer string
-            if status.isdigit():
-                stmt = stmt.where(Game.status_id == int(status))
-            else:
-                stmt = stmt.where(Game.status == status)
+            # Separate integers (IDs) from strings (Names) if mixed input
+            # Though strictly type hinted as List[str], FastAPI might pass mixed if user does ?status=1
+            status_ids = []
+            status_names = []
+            for s in status:
+                if s.isdigit():
+                    status_ids.append(int(s))
+                else:
+                    status_names.append(s)
 
+            conditions = []
+            if status_ids:
+                conditions.append(Game.status_id.in_(status_ids))
+            if status_names:
+                conditions.append(Game.status.in_(status_names))
+
+            if conditions:
+                stmt = stmt.where(or_(*conditions))
+
+        if exclude_status:
+            ex_ids = []
+            ex_names = []
+            for s in exclude_status:
+                if s.isdigit():
+                    ex_ids.append(int(s))
+                else:
+                    ex_names.append(s)
+
+            if ex_ids:
+                stmt = stmt.where(Game.status_id.notin_(ex_ids))
+            if ex_names:
+                stmt = stmt.where(Game.status.notin_(ex_names))
+
+        # --- Engine Filtering ---
         if engine:
-            stmt = stmt.where(Game.type_id == engine)
+            stmt = stmt.where(Game.type_id.in_(engine))
+
+        if exclude_engine:
+            stmt = stmt.where(Game.type_id.notin_(exclude_engine))
 
         if tags:
             for tag in tags:
