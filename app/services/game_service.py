@@ -339,6 +339,12 @@ class GameService:
 
             sort_col = (v / (v + m)) * R + (m / (v + m)) * C
 
+        elif sort_by == "updated_at":
+            sort_col = Game.f95_last_update
+        else:
+            # Default fallback
+            sort_col = Game.f95_last_update
+
         if sort_dir == "asc":
             stmt = stmt.order_by(sort_col.asc().nulls_last())
         else:
