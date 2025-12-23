@@ -251,14 +251,34 @@ class GameService:
 
         if tags:
             for tag in tags:
-                stmt = stmt.where(Game.tags.contains(tag))
+                # Precise tag matching for JSON array string "[...]"
+                # 1. Exact: "[tag]"
+                # 2. Start: "[tag, %"
+                # 3. End:   "%, tag]"
+                # 4. Mid:   "%, tag, %"
+                stmt = stmt.where(
+                    or_(
+                        Game.tags == f"[{tag}]",
+                        Game.tags.like(f"[{tag}, %"),
+                        Game.tags.like(f"%, {tag}]"),
+                        Game.tags.like(f"%, {tag}, %"),
+                    )
+                )
 
         if exclude_tags:
             for tag in exclude_tags:
-                # Ensure we handle NULL tags (keep them)
-                # Use explicit NOT LIKE to be safe
+                # Exclude if it matches any of the precise patterns
+                # Handle NULLs safely (keep them if excluding a tag)
                 stmt = stmt.where(
-                    or_(Game.tags.is_(None), Game.tags.notlike(f"%{tag}%"))
+                    or_(
+                        Game.tags.is_(None),
+                        ~or_(
+                            Game.tags == f"[{tag}]",
+                            Game.tags.like(f"[{tag}, %"),
+                            Game.tags.like(f"%, {tag}]"),
+                            Game.tags.like(f"%, {tag}, %"),
+                        ),
+                    )
                 )
 
         if updated_after:
