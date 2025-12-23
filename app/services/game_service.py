@@ -137,15 +137,19 @@ class GameService:
             except (ValueError, TypeError):
                 pass
 
-        if details.get("rating"):
+        # Parse Rating (Key is 'score' in F95Checker JSON)
+        rating_val = details.get("rating") or details.get("score")
+        if rating_val:
             try:
-                game.rating = float(details.get("rating"))
+                game.rating = float(rating_val)
             except (ValueError, TypeError):
                 pass
 
-        if details.get("likes"):
+        # Parse Likes (Key might be 'votes' in F95Checker JSON)
+        likes_val = details.get("likes") or details.get("votes")
+        if likes_val:
             try:
-                game.likes = int(details.get("likes"))
+                game.likes = int(likes_val)
             except (ValueError, TypeError):
                 pass
 

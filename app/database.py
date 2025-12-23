@@ -83,7 +83,7 @@ async def backfill_ratings():
         stmt = (
             select(Game)
             .where(Game.details_json.is_not(None))
-            .where(Game.rating.is_(None))
+            .where((Game.rating.is_(None)) | (Game.likes.is_(None)))
             .limit(1000)
         )
 
@@ -101,16 +101,20 @@ async def backfill_ratings():
                     data = json.loads(game.details_json)
                     changed = False
 
-                    if "rating" in data:
+                    # Handle Rating (field is 'score' in F95Checker JSON)
+                    rating_val = data.get("rating") or data.get("score")
+                    if rating_val:
                         try:
-                            game.rating = float(data["rating"])
+                            game.rating = float(rating_val)
                             changed = True
                         except (ValueError, TypeError):
                             pass
 
-                    if "likes" in data:
+                    # Handle Likes (field might be 'likes' or 'votes')
+                    likes_val = data.get("likes") or data.get("votes")
+                    if likes_val:
                         try:
-                            game.likes = int(data["likes"])
+                            game.likes = int(likes_val)
                             changed = True
                         except (ValueError, TypeError):
                             pass

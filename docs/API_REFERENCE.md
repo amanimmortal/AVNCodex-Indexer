@@ -36,8 +36,6 @@ Search for a game by name or browse the local library with filters.
     - `sort_by` (string, optional): Sort field (`name`, `updated_at`, `rating`, `likes`). Default: `updated_at`.
     - `sort_dir` (string, optional): Sort direction (`asc`, `desc`). Default: `desc`.
 - **Example (Advanced)**:
-    - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking]
-    - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking], Page 2
     - *Query*: Engine = RenPy, Status = Ongoing, Tags = [3dcg, vaginal sex], Exclude = [spanking], Page 2, Sort by Rating DESC
     - *URL*: `/games/search?engine=14&status=1&tags=4&tags=134&exclude_tags=119&page=2&limit=30&sort_by=rating&sort_dir=desc`
 - **Returns**: JSON Array of [Game Objects](#game-object-model).
