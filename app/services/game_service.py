@@ -4,7 +4,8 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.future import select
-from sqlalchemy import or_
+from sqlalchemy import or_, func, cast, Float, literal
+from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks
 from app.models import Game
@@ -322,12 +323,21 @@ class GameService:
         if sort_by == "name":
             sort_col = Game.name
         elif sort_by == "rating":
-            sort_col = Game.rating
-        elif sort_by == "likes":
-            sort_col = Game.likes
-        else:
-            # Default to updated_at
-            sort_col = Game.f95_last_update
+            # Weighted Rating (Bayesian Average)
+            # WR = (v / (v+m)) * R + (m / (v+m)) * C
+            # v = likes (coalesce to 0)
+            # R = rating (coalesce to 0)
+            # m = settings.WEIGHTED_RATING_MIN_VOTES
+            # C = settings.WEIGHTED_RATING_GLOBAL_MEAN
+
+            m = settings.WEIGHTED_RATING_MIN_VOTES
+            C = settings.WEIGHTED_RATING_GLOBAL_MEAN
+
+            # Cast inputs to Float to avoid integer division issues
+            v = cast(coalesce(Game.likes, 0), Float)
+            R = cast(coalesce(Game.rating, 0), Float)
+
+            sort_col = (v / (v + m)) * R + (m / (v + m)) * C
 
         if sort_dir == "asc":
             stmt = stmt.order_by(sort_col.asc().nulls_last())

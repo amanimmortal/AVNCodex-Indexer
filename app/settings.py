@@ -13,6 +13,8 @@ class Settings(BaseSettings):
     LOG_DIR: str = "data/logs"
     SEED_PAGE_DELAY: int = 45
     SEARCH_FRESHNESS_DAYS: int = 7
+    WEIGHTED_RATING_MIN_VOTES: int = 50
+    WEIGHTED_RATING_GLOBAL_MEAN: float = 4.0
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
