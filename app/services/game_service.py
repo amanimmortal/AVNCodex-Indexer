@@ -303,8 +303,14 @@ class GameService:
             for g in local_results:
                 if not g.last_enriched:
                     ids_to_check.append(g.f95_id)
-                elif g.last_enriched < cutoff_date:
-                    ids_to_check.append(g.f95_id)
+                elif g.last_enriched:
+                    # Ensure compatibility between naive DB datetimes and aware cutoff_date
+                    le = g.last_enriched
+                    if le.tzinfo is None:
+                        le = le.replace(tzinfo=timezone.utc)
+
+                    if le < cutoff_date:
+                        ids_to_check.append(g.f95_id)
 
             if not ids_to_check:
                 logger.info(
