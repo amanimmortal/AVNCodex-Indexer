@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.future import select
-from sqlalchemy import or_, func, cast, Float, literal
+from sqlalchemy import or_, cast, Float
 from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks
@@ -26,6 +26,79 @@ async def standalone_force_update(thread_id: int):
     async with AsyncSessionLocal() as session:
         service = GameService(session)
         await service.force_update_game(thread_id)
+
+
+async def standalone_process_search_updates(game_ids: List[int]):
+    """
+    Background task to process search result updates.
+    Checks for updates and fetches details for stale items.
+    """
+    if not game_ids:
+        return
+
+    logger.info(f"Background Update: Starting check for {len(game_ids)} items.")
+
+    async with AsyncSessionLocal() as session:
+        service = GameService(session)
+        checker_client = service.checker_client
+
+        # 1. Fast Check
+        timestamps_map = await asyncio.to_thread(checker_client.check_updates, game_ids)
+
+        # 2. Identify Stale (Need to fetch current state from DB first)
+        # We need to re-fetch the games because we are in a new session
+        # and we need to check their current timestamp against the fast check result.
+
+        stmt = select(Game).where(Game.f95_id.in_(list(timestamps_map.keys())))
+        result = await session.execute(stmt)
+        games = result.scalars().all()
+        games_map = {g.f95_id: g for g in games}
+
+        to_fetch_details = []
+
+        for gid, ts in timestamps_map.items():
+            game = games_map.get(gid)
+            if not game:
+                continue
+
+            should_fetch = False
+
+            # Condition A: Never enriched
+            if not game.last_enriched:
+                should_fetch = True
+
+            # Condition B: Timestamp mismatch (remote is newer)
+            elif (
+                game.f95_last_update
+                and datetime.fromtimestamp(ts) > game.f95_last_update
+            ):
+                should_fetch = True
+
+            if should_fetch:
+                to_fetch_details.append((gid, ts))
+
+        # 3. Fetch & Update
+        if to_fetch_details:
+            logger.info(
+                f"Background Update: Syncing {len(to_fetch_details)} stale games..."
+            )
+            count = 0
+            for gid, ts in to_fetch_details:
+                details = await asyncio.to_thread(
+                    checker_client.get_game_details, gid, ts
+                )
+                if details:
+                    game = games_map.get(gid)
+                    if game:
+                        service.update_game_with_checker_details(game, details, ts)
+                        count += 1
+
+            await session.commit()
+            logger.info(f"Background Update: Successfully updated {count} games.")
+        else:
+            logger.info(
+                "Background Update: No items needed actual updates after check."
+            )
 
 
 class GameService:
@@ -361,7 +434,6 @@ class GameService:
             logger.info(f"Local hit: {len(local_results)} matches (Page {page}).")
 
             # --- Synchronous Freshness Check (Optimized) ---
-            games_map = {g.f95_id: g for g in local_results}
 
             # Optimization: Only check items that haven't been enriched recently
             # "Recently" defined by settings.SEARCH_FRESHNESS_DAYS (default 7 days)
@@ -389,62 +461,18 @@ class GameService:
                 return local_results
 
             logger.info(
-                f"Freshness Check: Checking {len(ids_to_check)}/{len(local_results)} items (others cached < {settings.SEARCH_FRESHNESS_DAYS} days)"
+                f"Freshness Check: {len(ids_to_check)}/{len(local_results)} items candidates for update. Scheduling background task."
             )
 
-            # 1. Fast Check
-
-            timestamps_map = await asyncio.to_thread(
-                self.checker_client.check_updates, ids_to_check
-            )
-
-            # 2. Identify Stale
-            to_fetch_details = []
-
-            for gid, ts in timestamps_map.items():
-                game = games_map.get(gid)
-                if not game:
-                    continue
-
-                should_fetch = False
-
-                # Condition A: Never enriched
-                if not game.last_enriched:
-                    should_fetch = True
-
-                # Condition B: Timestamp mismatch (remote is newer)
-                elif (
-                    game.f95_last_update
-                    and datetime.fromtimestamp(ts) > game.f95_last_update
-                ):
-                    should_fetch = True
-
-                # Condition C: Very old enrichment (safety net, optional, e.g. > 30 days)
-                # elif (now - game.last_enriched).days > 30:
-                #    should_fetch = True
-
-                if should_fetch:
-                    to_fetch_details.append((gid, ts))
-
-            # 3. Synchronous Fetch & Update
-            if to_fetch_details:
-                logger.info(
-                    f"Syncing {len(to_fetch_details)} stale games synchronously..."
+            # Offload to background task
+            if background_tasks:
+                background_tasks.add_task(
+                    standalone_process_search_updates, ids_to_check
                 )
-                for gid, ts in to_fetch_details:
-                    details = await asyncio.to_thread(
-                        self.checker_client.get_game_details, gid, ts
-                    )
-                    if details:
-                        # We reuse the helper, ensuring the object in session is updated
-                        game = games_map[gid]
-                        self.update_game_with_checker_details(game, details, ts)
-
-                # Commit updates before returning
-                await self.session.commit()
-                # Refresh all to ensure return values are current
-                for g in local_results:
-                    await self.session.refresh(g)
+            else:
+                logger.warning(
+                    "No background_tasks object provided. Skipping background update."
+                )
 
             return local_results
 
