@@ -298,6 +298,7 @@ class GameService:
         limit: int = 30,
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
+        creator: str = None,
     ) -> List[Game]:
         """
         Refactored Search Logic (Local First with Remote Fallback).
@@ -307,6 +308,9 @@ class GameService:
         stmt = select(Game)
         if query:
             stmt = stmt.where(Game.name.ilike(f"%{query}%"))
+
+        if creator:
+            stmt = stmt.where(Game.creator.ilike(f"%{creator}%"))
 
         # --- Status Filtering ---
         if status:
@@ -469,8 +473,8 @@ class GameService:
 
             return local_results
 
-        # 2. Remote Fallback (Only if we have a Name Query and NO results)
-        if query and not local_results:
+        # 2. Remote Fallback (Only if we have a Name Query and NO results, and no creator filter which F95Z doesn't support well easily via this method)
+        if query and not local_results and not creator:
             logger.info(
                 f"Local miss for '{query}'. Triggering Remote Search (F95Zone)."
             )

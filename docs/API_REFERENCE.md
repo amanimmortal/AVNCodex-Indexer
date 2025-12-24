@@ -26,6 +26,7 @@ Search for a game by name or browse the local library with filters.
     - **Without `q`**: Browses/Filters the **Local DB** only.
 - **Params**: 
     - `q` (string, optional): The search query (e.g., "Eternum").
+    - `creator` (string, optional): Filter by Creator/Author (partial match). (e.g., `creator=DrPinkCake`).
     - `status` (list[string], optional): Filter by **Status ID/Name** (Inclusion). (e.g., `status=Completed&status=Ongoing` or `status=1`).
     - `exclude_status` (list[string], optional): Filter by **Status ID/Name** (Exclusion). (e.g., `exclude_status=Abandoned`).
     - `engine` (list[int], optional): Filter by **Type ID** (Inclusion). (e.g., `engine=14&engine=19`).

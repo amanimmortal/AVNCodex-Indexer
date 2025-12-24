@@ -39,6 +39,7 @@ async def get_seed_status():
 async def search_games(
     background_tasks: BackgroundTasks,
     q: str = None,
+    creator: str = Query(None, description="Filter by Creator/Author"),
     status: List[str] = Query(None),
     exclude_status: List[str] = Query(None),
     tags: List[str] = Query(None),
@@ -72,6 +73,7 @@ async def search_games(
         limit,
         sort_by,
         sort_dir,
+        creator,
     )
 
 
