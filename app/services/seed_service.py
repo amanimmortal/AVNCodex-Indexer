@@ -32,6 +32,7 @@ class SeedService:
         self.last_run_completion_time = 0.0
         self.pending_enrichment_count = 0
         self.estimated_seconds_remaining = 0
+        self.metric_error = None
         self._load_state()
 
     def _load_state(self):
@@ -100,6 +101,8 @@ class SeedService:
             "last_run_completion_time": self.last_run_completion_time,
             "pending_enrichment_count": self.pending_enrichment_count,
             "estimated_seconds_remaining": self.estimated_seconds_remaining,
+            "metric_error": str(self.metric_error) if self.metric_error else None,
+            "db_url": settings.DATABASE_URL,
         }
 
     async def seed_loop(self, reset: bool = False):
@@ -461,7 +464,7 @@ class SeedService:
         """
         try:
             # Count games where last_enriched is None
-            stmt = select(func.count(Game.id)).where(Game.last_enriched.is_(None))
+            stmt = select(func.count(Game.f95_id)).where(Game.last_enriched.is_(None))
             result = await session.execute(stmt)
             count = result.scalar() or 0
 
@@ -478,4 +481,5 @@ class SeedService:
             )
 
         except Exception as e:
+            self.metric_error = str(e)
             logger.error(f"Failed to update pending enrichment count: {e}")
