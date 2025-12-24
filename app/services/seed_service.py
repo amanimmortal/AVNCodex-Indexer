@@ -7,6 +7,7 @@ from app.models import Game
 from app.services.f95_client import F95ZoneClient
 from app.database import AsyncSessionLocal
 from sqlalchemy.future import select
+from sqlalchemy import func
 from app.services.f95checker_client import F95CheckerClient
 from app.services.game_service import GameService
 
@@ -29,6 +30,8 @@ class SeedService:
         self.was_running_on_shutdown = False
         self.max_processed_id = 0
         self.last_run_completion_time = 0.0
+        self.pending_enrichment_count = 0
+        self.estimated_seconds_remaining = 0
         self._load_state()
 
     def _load_state(self):
@@ -93,6 +96,8 @@ class SeedService:
             "status": self.enrichment_status,
             "max_processed_id": self.max_processed_id,
             "last_run_completion_time": self.last_run_completion_time,
+            "pending_enrichment_count": self.pending_enrichment_count,
+            "estimated_seconds_remaining": self.estimated_seconds_remaining,
         }
 
     async def seed_loop(self, reset: bool = False):
@@ -340,7 +345,12 @@ class SeedService:
         # or should we count items processed IN TOTAL? Yes, let's keep adding to it.
         self.page = 1
         await self._save_state()
+        await self._save_state()
         logger.info("Starting Slow Enrichment Loop...")
+
+        # Update initial pending count
+        async with AsyncSessionLocal() as session:
+            await self._update_pending_count(session)
 
         while True:
             if not self.is_running:
@@ -430,9 +440,10 @@ class SeedService:
 
                     await session.commit()
 
-                    # Update Progress
+                    # Update Progress & Metrics
                     self.items_processed += len(candidates)
                     self.page += 1
+                    await self._update_pending_count(session)
                     await self._save_state()
 
                 except Exception as e:
@@ -441,3 +452,24 @@ class SeedService:
             # 4. Long Sleep between batches
             logger.info("Enrichment batch done. Sleeping 60 seconds...")
             await asyncio.sleep(60)
+
+    async def _update_pending_count(self, session: AsyncSession):
+        """
+        Update the count of games pending enrichment and estimated time.
+        """
+        try:
+            # Count games where last_enriched is None
+            stmt = select(func.count(Game.id)).where(Game.last_enriched.is_(None))
+            result = await session.execute(stmt)
+            count = result.scalar() or 0
+
+            self.pending_enrichment_count = count
+
+            # Estimate: (2s per game) + (60s overhead per batch of 10)
+            # Batch size = 10
+            # Time per batch = 10*2 + 60 = 80s
+            # Avg time per game = 8s
+            self.estimated_seconds_remaining = count * 8
+
+        except Exception as e:
+            logger.error(f"Failed to update pending enrichment count: {e}")

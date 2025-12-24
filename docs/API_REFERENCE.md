@@ -89,6 +89,8 @@ Get the current status of the background seeding process.
     - `current_page` (integer)
     - `items_processed` (integer)
     - `last_error` (string or null)
+    - `pending_enrichment_count` (integer): Number of games waiting for enrichment details.
+    - `estimated_seconds_remaining` (integer): Estimated time to complete enrichment (based on current queue).
 
 ---
 

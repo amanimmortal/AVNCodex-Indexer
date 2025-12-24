@@ -12,6 +12,16 @@ services:
       - PGID=100
       - DATABASE_URL=sqlite+aiosqlite:////data/avn_index.db
       - SEED_STATE_FILE=/data/seed_state.json
-      - F95_USERNAME=amanimmortal
-      - F95_PASSWORD=27L5ueFMUZ4NmAz
+      - F95_USERNAME=username
+      - F95_PASSWORD=password
+      # Optional Settings (Defaults shown)
+      - F95CHECKER_DAILY_LIMIT=1000
+      - SYNC_INTERVAL_HOURS=6
+      - LOG_LEVEL=INFO
+      - LOG_JSON_FORMAT=True
+      - LOG_DIR=/data/logs
+      - SEED_PAGE_DELAY=45
+      - SEARCH_FRESHNESS_DAYS=7
+      - WEIGHTED_RATING_MIN_VOTES=50
+      - WEIGHTED_RATING_GLOBAL_MEAN=4.0
     restart: unless-stopped
