@@ -1,7 +1,8 @@
-import requests
+import httpx
 import logging
 from typing import Optional, List, Dict, Any
 from app.settings import settings
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -12,50 +13,44 @@ class F95ZoneClient:
     LOGIN_URL = f"{BASE_URL}/login/login"
 
     def __init__(self):
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
+        # Persistent client to hold cookies
+        self.client = httpx.AsyncClient(
+            verify=False,  # F95 often has weird certs or cloudflare
+            timeout=30.0,
+            headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
+            },
+            follow_redirects=True,
         )
         self.username = settings.F95_USERNAME
         self.password = settings.F95_PASSWORD
         self._logged_in = False
 
-    def login(self) -> bool:
+    async def close(self):
+        await self.client.aclose()
+
+    async def login(self) -> bool:
         """
         Logs in to F95Zone to get session cookies.
-        Note: This is a simplified login. Real login often requires handling CSRF tokens
-        and potential 2FA/CAPTCHA. We will attempt standard login logic here.
         """
-        # For the "Latest Updates" API, strictly speaking, just having valid cookies
-        # (even if anonymous sometimes) might work for *reading* public lists,
-        # but the request was to use credentials.
-
-        # NOTE: If we want to implement full login logic (CSRF, etc) we should port
-        # the legacy code's login mechanism. For now, I will assume basic session
-        # or that the user might need to provide cookies if 2FA is on.
-        # But let's try to implement the basic POST login.
-
         try:
             # 1. Get CSRF Token
-            resp = self.session.get(self.LOGIN_URL)
+            resp = await self.client.get(self.LOGIN_URL)
             resp.raise_for_status()
 
-            # Simple token extraction (regex or soup)
-            # In legacy code it used soup.select_one('input[name="_xfToken"]')
-            # I will use a simple split/regex to avoid soup overhead if possible,
-            # but soup is installed so let's use it for reliability.
+            # Beautiful Soup is CPU bound, run in thread
             from bs4 import BeautifulSoup
 
-            soup = BeautifulSoup(resp.text, "html.parser")
-            token_input = soup.select_one('input[name="_xfToken"]')
+            def parse_csrf(html):
+                soup = BeautifulSoup(html, "html.parser")
+                token_input = soup.select_one('input[name="_xfToken"]')
+                return token_input.get("value") if token_input else None
 
-            if not token_input:
+            xf_token = await asyncio.to_thread(parse_csrf, resp.text)
+
+            if not xf_token:
                 logger.error("Could not find login CSRF token.")
                 return False
-
-            xf_token = token_input.get("value")
 
             # 2. Post Creds
             payload = {
@@ -66,12 +61,13 @@ class F95ZoneClient:
                 "_xfRedirect": self.BASE_URL + "/",
             }
 
-            login_resp = self.session.post(self.LOGIN_URL, data=payload)
+            login_resp = await self.client.post(self.LOGIN_URL, data=payload)
             login_resp.raise_for_status()
 
             # Check success (usually redirect or cookie presence)
-            # Legacy code checked for user ID in span
-            if "xf_user" in self.session.cookies:
+            # httpx cookie jar access
+            cookies = self.client.cookies
+            if "xf_user" in cookies:
                 self._logged_in = True
                 logger.info(f"Logged in as {self.username}")
                 return True
@@ -85,14 +81,14 @@ class F95ZoneClient:
             logger.error(f"Login exception: {e}")
             return False
 
-    def get_latest_updates(
+    async def get_latest_updates(
         self, page: int = 1, rows: int = 60, sort: str = "date"
     ) -> List[Dict[str, Any]]:
         """
         Fetches the latest updates from the API.
         """
         if not self._logged_in:
-            if not self.login():
+            if not await self.login():
                 logger.warning("Proceeding without login (results might be limited).")
 
         params = {
@@ -109,7 +105,7 @@ class F95ZoneClient:
         )
 
         try:
-            resp = self.session.get(self.LATEST_DATA_URL, params=params)
+            resp = await self.client.get(self.LATEST_DATA_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
 
@@ -132,14 +128,14 @@ class F95ZoneClient:
             )
             return None
 
-    def search_games(
+    async def search_games(
         self, query: str, author: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
         Searches for a specific game.
         """
         if not self._logged_in:
-            self.login()
+            await self.login()
 
         params = {
             "cmd": "list",
@@ -155,7 +151,7 @@ class F95ZoneClient:
         )
 
         try:
-            resp = self.session.get(self.LATEST_DATA_URL, params=params)
+            resp = await self.client.get(self.LATEST_DATA_URL, params=params)
             resp.raise_for_status()
             data = resp.json()
 

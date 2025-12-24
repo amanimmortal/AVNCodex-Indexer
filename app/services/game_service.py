@@ -1,6 +1,5 @@
 import logging
 import json
-import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.future import select
@@ -43,7 +42,7 @@ async def standalone_process_search_updates(game_ids: List[int]):
         checker_client = service.checker_client
 
         # 1. Fast Check
-        timestamps_map = await asyncio.to_thread(checker_client.check_updates, game_ids)
+        timestamps_map = await checker_client.check_updates(game_ids)
 
         # 2. Identify Stale (Need to fetch current state from DB first)
         # We need to re-fetch the games because we are in a new session
@@ -84,9 +83,7 @@ async def standalone_process_search_updates(game_ids: List[int]):
             )
             count = 0
             for gid, ts in to_fetch_details:
-                details = await asyncio.to_thread(
-                    checker_client.get_game_details, gid, ts
-                )
+                details = await checker_client.get_game_details(gid, ts)
                 if details:
                     game = games_map.get(gid)
                     if game:
@@ -161,9 +158,7 @@ class GameService:
             f"Checking updates for {len(ids_to_check)} tracked games via F95Checker..."
         )
 
-        timestamps_map = await asyncio.to_thread(
-            self.checker_client.check_updates, ids_to_check
-        )
+        timestamps_map = await self.checker_client.check_updates(ids_to_check)
 
         count = 0
         for tid, ts in timestamps_map.items():
@@ -181,9 +176,7 @@ class GameService:
 
             if should_fetch:
                 logger.info(f"Fetching full details for tracked game {tid}...")
-                details = await asyncio.to_thread(
-                    self.checker_client.get_game_details, tid, ts
-                )
+                details = await self.checker_client.get_game_details(tid, ts)
                 if details:
                     self.update_game_with_checker_details(game, details, ts)
                     count += 1
@@ -482,9 +475,7 @@ class GameService:
                 f"Local miss for '{query}'. Triggering Remote Search (F95Zone)."
             )
 
-            remote_matches = await asyncio.to_thread(
-                self.f95_client.search_games, query
-            )
+            remote_matches = await self.f95_client.search_games(query)
 
             # Limit Remote Results based on requested limit
             remote_matches = remote_matches[:limit]
@@ -530,15 +521,15 @@ class GameService:
             # Make a quick pass to enrich these new findings if possible
             if saved_games:
                 ids = [g.f95_id for g in saved_games]
-                ts_map = await asyncio.to_thread(self.checker_client.check_updates, ids)
+                ts_map = await self.checker_client.check_updates(ids)
 
                 updates_count = 0
                 for game in saved_games:
                     ts = ts_map.get(game.f95_id)
                     if ts:
                         # Fetch details
-                        details = await asyncio.to_thread(
-                            self.checker_client.get_game_details, game.f95_id, ts
+                        details = await self.checker_client.get_game_details(
+                            game.f95_id, ts
                         )
                         if details:
                             self.update_game_with_checker_details(game, details, ts)
@@ -557,16 +548,14 @@ class GameService:
         """
         Scheduled job: Recent Updates.
         """
-        self.f95_client.login()
+        await self.f95_client.login()
 
         page = 1
         has_more = True
 
         while has_more:
             logger.info(f"Fetching Recent Updates Page {page}...")
-            updates = await asyncio.to_thread(
-                self.f95_client.get_latest_updates, page=page, sort="date"
-            )
+            updates = await self.f95_client.get_latest_updates(page=page, sort="date")
 
             if not updates:
                 break
@@ -630,12 +619,10 @@ class GameService:
         if not game:
             pass  # Or create empty stub if strict
 
-        timestamps = await asyncio.to_thread(
-            self.checker_client.check_updates, [thread_id]
-        )
+        timestamps = await self.checker_client.check_updates([thread_id])
         if thread_id in timestamps:
-            details = await asyncio.to_thread(
-                self.checker_client.get_game_details, thread_id, timestamps[thread_id]
+            details = await self.checker_client.get_game_details(
+                thread_id, timestamps[thread_id]
             )
             if details:
                 if not game:

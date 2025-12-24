@@ -1,5 +1,5 @@
 import feedparser
-import requests
+import httpx
 import re
 import logging
 from typing import List, Dict, Any, Optional
@@ -11,16 +11,14 @@ class RSSClient:
     BASE_RSS_URL = "https://f95zone.to/sam/latest_alpha/latest_data.php"
 
     def __init__(self):
-        # We use a session but no login required for public RSS usually,
-        # though protections might exist.
-        self.session = requests.Session()
-        self.session.headers.update(
-            {
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-            }
-        )
+        # httpx client could be reused, but here we instantiate per request or could be passed in.
+        # For simplicity in this service-pattern, we'll create a new async client or use a context manager in the method.
+        # Ideally, we should share a client, but let's stick to making it work first.
+        self.headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
 
-    def get_games(
+    async def get_games(
         self, limit: int = 60, search: str = None, tags: List[int] = None
     ) -> List[Dict[str, Any]]:
         """
@@ -31,17 +29,24 @@ class RSSClient:
             params["search"] = search
 
         # Legacy code detail: tags were passed as tags[]=1&tags[]=2
-        # requests handles list of tuples well for this.
+        # httpx handles list of tuples well for this.
         query_params = list(params.items())
         if tags:
             for t in tags:
                 query_params.append(("tags[]", str(t)))
 
         try:
-            resp = self.session.get(self.BASE_RSS_URL, params=query_params)
-            resp.raise_for_status()
+            async with httpx.AsyncClient(
+                headers=self.headers, verify=False, timeout=30.0
+            ) as client:
+                resp = await client.get(self.BASE_RSS_URL, params=query_params)
+                resp.raise_for_status()
+                content = resp.content
 
-            feed = feedparser.parse(resp.content)
+            # Feedparser is blocking/cpu-bound, so run in executor to be safe if feed is huge
+            # But for RSS it's usually fast. Let's strictly follow async best practices.
+            # However, feedparser.parse works on bytes.
+            feed = feedparser.parse(content)
             games = []
 
             for entry in feed.entries:

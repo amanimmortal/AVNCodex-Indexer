@@ -166,13 +166,12 @@ class SeedService:
         try:
             # Authenticate first
             logger.info("Authenticating with F95Zone...")
-            await asyncio.to_thread(self.client.login)
+            await self.client.login()
 
             while True:
                 # 1. Fetch Page
                 logger.info(f"Seeding Page {self.page} (sort={sort_mode})...")
-                games_data = await asyncio.to_thread(
-                    self.client.get_latest_updates,
+                games_data = await self.client.get_latest_updates(
                     page=self.page,
                     rows=60,
                     sort=sort_mode,
@@ -386,9 +385,7 @@ class SeedService:
 
                 # 2. Fast Check (1 API Call)
                 try:
-                    timestamps_map = await asyncio.to_thread(
-                        self.checker_client.check_updates, ids
-                    )
+                    timestamps_map = await self.checker_client.check_updates(ids)
 
                     # 3. Full Details (Up to 10 API Calls)
                     # Use GameService to handle logic reuse
@@ -409,8 +406,8 @@ class SeedService:
                             await asyncio.sleep(2)
 
                             try:
-                                details = await asyncio.to_thread(
-                                    self.checker_client.get_game_details, tid, ts
+                                details = await self.checker_client.get_game_details(
+                                    tid, ts
                                 )
                                 if details:
                                     game_service.update_game_with_checker_details(
