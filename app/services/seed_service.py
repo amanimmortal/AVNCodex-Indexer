@@ -82,6 +82,8 @@ class SeedService:
                     "enrichment_status": self.enrichment_status,
                     "max_processed_id": self.max_processed_id,
                     "last_run_completion_time": self.last_run_completion_time,
+                    "pending_enrichment_count": self.pending_enrichment_count,
+                    "estimated_seconds_remaining": self.estimated_seconds_remaining,
                 },
                 f,
             )
@@ -470,6 +472,10 @@ class SeedService:
             # Time per batch = 10*2 + 60 = 80s
             # Avg time per game = 8s
             self.estimated_seconds_remaining = count * 8
+
+            logger.info(
+                f"Updated Enrichment Metrics: Pending={self.pending_enrichment_count}, ETC={self.estimated_seconds_remaining}s"
+            )
 
         except Exception as e:
             logger.error(f"Failed to update pending enrichment count: {e}")
