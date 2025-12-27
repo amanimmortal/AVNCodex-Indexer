@@ -33,6 +33,7 @@ class SeedService:
         self.pending_enrichment_count = 0
         self.estimated_seconds_remaining = 0
         self.metric_error = None
+        self.failed_ids = set()
         self._load_state()
 
     def _load_state(self):
@@ -361,12 +362,22 @@ class SeedService:
                 break
 
             async with AsyncSessionLocal() as session:
-                # 1. Fetch Candidates (Not enriched yet)
-                stmt = select(Game).where(Game.last_enriched.is_(None)).limit(10)
+                # 1. Fetch Candidates (Not enriched yet, and NOT in failed_ids)
+                stmt = (
+                    select(Game)
+                    .where(Game.last_enriched.is_(None))
+                    .where(Game.f95_id.notin_(self.failed_ids))
+                    .limit(10)
+                )
                 result = await session.execute(stmt)
                 candidates = result.scalars().all()
 
                 if not candidates:
+                    if self.failed_ids:
+                        logger.warning(
+                            f"Enrichment loop finished with {len(self.failed_ids)} skipped items (Transient Errors)."
+                        )
+
                     logger.info("No more games to enrich. Enrichment loop finished.")
 
                     # Auto-reset state for next run
@@ -374,6 +385,7 @@ class SeedService:
                     self.items_processed = 0
                     self.enrichment_status = "idle"
                     self.is_running = False
+                    self.failed_ids.clear()  # Clear specific failures on reset
                     await self._save_state()
                     logger.info(
                         "Seed state auto-reset to Page 1 (Idle).Ready for next run."
@@ -415,9 +427,32 @@ class SeedService:
                                     )
                                     logger.info(f"Enriched {tid} successfully.")
                                 else:
-                                    logger.warning(f"Failed to get details for {tid}")
+                                    # Handle Null/None response safely
+                                    raise ValueError("Empty details returned")
+
                             except Exception as e:
-                                logger.error(f"Error enriching {tid}: {e}")
+                                # Start of Error Handling Logic
+                                import httpx
+
+                                is_404 = False
+                                if isinstance(e, httpx.HTTPStatusError):
+                                    if e.response.status_code == 404:
+                                        is_404 = True
+
+                                if is_404:
+                                    logger.warning(
+                                        f"Game {tid} returned 404 (Permanent). Marking as enriched."
+                                    )
+                                    from datetime import datetime, timezone
+
+                                    game.last_enriched = datetime.now(timezone.utc)
+                                    session.add(game)
+                                else:
+                                    logger.error(
+                                        f"Error enriching {tid} (Transient): {e}"
+                                    )
+                                    self.failed_ids.add(tid)
+                                    # Do NOT mark as enriched, so it retries next session
                         else:
                             # Not found in F95Checker?
                             # We might want to mark it as enriched to avoid infinite loop
@@ -450,6 +485,10 @@ class SeedService:
 
                 except Exception as e:
                     logger.error(f"Enrichment batch failed: {e}")
+                    # If batch fails completely, might want to add all to failed_ids?
+                    # For now, just continue, they will be picked up again or stuck if persistent.
+                    # Ideally we should identify which one failed if it was a batch error.
+                    pass
 
             # 4. Long Sleep between batches
             logger.info("Enrichment batch done. Sleeping 60 seconds...")
