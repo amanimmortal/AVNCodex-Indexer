@@ -43,6 +43,15 @@ async def search_games(
     status: List[str] = Query(None),
     exclude_status: List[str] = Query(None),
     tags: List[str] = Query(None),
+    tag_mode: str = Query(
+        "AND",
+        enum=["AND", "OR"],
+        description="Logic for 'tags' list: AND (all match) or OR (at least one matches)",
+    ),
+    tag_groups: str = Query(
+        None,
+        description="JSON List[List[str]] for complex logic: (A&B) OR (C) OR (D&E). Overrides tag_mode if used with tags.",
+    ),
     exclude_tags: List[str] = Query(None),
     engine: List[int] = Query(None),
     exclude_engine: List[int] = Query(None),
@@ -57,6 +66,17 @@ async def search_games(
     sort_dir: str = Query("desc", enum=["asc", "desc"], description="Sort direction"),
     session: AsyncSession = Depends(get_session),
 ):
+    """
+    Search for games with advanced filtering.
+
+    **Tag Logic:**
+    - `tags` + `tag_mode="AND"` (default): Games must match ALL tags.
+    - `tags` + `tag_mode="OR"`: Games must match AT LEAST ONE tag.
+    - `tag_groups`: Advanced JSON boolean logic.
+      Format: `[[Group1_Tag1, Group1_Tag2], [Group2_Tag1]]`
+      Logic: `(G1_T1 AND G1_T2) OR (G2_T1)`
+      Example: `[["RPG", "Fantasy"], ["Strategy"]]` -> (RPG AND Fantasy) OR (Strategy)
+    """
     service = GameService(session)
     # Use the hybrid search and index logic
     return await service.search_and_index(
@@ -74,6 +94,8 @@ async def search_games(
         sort_by,
         sort_dir,
         creator,
+        tag_mode,
+        tag_groups,
     )
 
 

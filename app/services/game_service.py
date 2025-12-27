@@ -3,7 +3,7 @@ import json
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 from sqlalchemy.future import select
-from sqlalchemy import or_, cast, Float
+from sqlalchemy import or_, and_, cast, Float
 from sqlalchemy.sql.functions import coalesce
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi import BackgroundTasks
@@ -299,6 +299,8 @@ class GameService:
         sort_by: str = "updated_at",
         sort_dir: str = "desc",
         creator: str = None,
+        tag_mode: str = "AND",
+        tag_groups: str = None,
     ) -> List[Game]:
         """
         Refactored Search Logic (Local First with Remote Fallback).
@@ -355,20 +357,57 @@ class GameService:
             stmt = stmt.where(Game.type_id.notin_(exclude_engine))
 
         if tags:
+            tag_conditions = []
             for tag in tags:
                 # Precise tag matching for JSON array string "[...]"
-                # 1. Exact: "[tag]"
-                # 2. Start: "[tag, %"
-                # 3. End:   "%, tag]"
-                # 4. Mid:   "%, tag, %"
-                stmt = stmt.where(
-                    or_(
-                        Game.tags == f"[{tag}]",
-                        Game.tags.like(f"[{tag}, %"),
-                        Game.tags.like(f"%, {tag}]"),
-                        Game.tags.like(f"%, {tag}, %"),
-                    )
+                # We expect tags to be double-quoted in JSON: ["Tag"]
+                tag_q = f'"{tag}"'
+                cond = or_(
+                    Game.tags == f"[{tag_q}]",
+                    Game.tags.like(f"[{tag_q}, %"),
+                    Game.tags.like(f"%, {tag_q}]"),
+                    Game.tags.like(f"%, {tag_q}, %"),
                 )
+                tag_conditions.append(cond)
+
+            if tag_conditions:
+                if tag_mode == "OR":
+                    stmt = stmt.where(or_(*tag_conditions))
+                else:
+                    # Default AND: Must match ALL tags
+                    for cond in tag_conditions:
+                        stmt = stmt.where(cond)
+
+        if tag_groups:
+            try:
+                groups = json.loads(tag_groups)
+                # Groups Logic: (GroupA) OR (GroupB) ...
+                # Inside Group: Tag1 AND Tag2 ...
+                if isinstance(groups, list) and groups:
+                    group_conditions = []
+                    for group_tags in groups:
+                        if not isinstance(group_tags, list) or not group_tags:
+                            continue
+
+                        # Build AND conditions for this group
+                        current_group_and = []
+                        for tag in group_tags:
+                            tag_q = f'"{tag}"'
+                            cond = or_(
+                                Game.tags == f"[{tag_q}]",
+                                Game.tags.like(f"[{tag_q}, %"),
+                                Game.tags.like(f"%, {tag_q}]"),
+                                Game.tags.like(f"%, {tag_q}, %"),
+                            )
+                            current_group_and.append(cond)
+
+                        if current_group_and:
+                            group_conditions.append(and_(*current_group_and))
+
+                    if group_conditions:
+                        stmt = stmt.where(or_(*group_conditions))
+            except json.JSONDecodeError:
+                logger.warning("Failed to parse tag_groups parameters as JSON.")
 
         if exclude_tags:
             for tag in exclude_tags:

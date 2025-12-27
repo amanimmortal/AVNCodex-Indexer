@@ -31,16 +31,20 @@ Search for a game by name or browse the local library with filters.
     - `exclude_status` (list[string], optional): Filter by **Status ID/Name** (Exclusion). (e.g., `exclude_status=Abandoned`).
     - `engine` (list[int], optional): Filter by **Type ID** (Inclusion). (e.g., `engine=14&engine=19`).
     - `exclude_engine` (list[int], optional): Filter by **Type ID** (Exclusion). (e.g., `exclude_engine=4`).
-    - `tags` (list[string], optional): Filter by Tag ID. (e.g., `tags=4&tags=134`).
-    - `exclude_tags` (list[string], optional): Filter by **Excluding** Tag ID. (e.g., `exclude_tags=119`).
+    - `tags` (list[string], optional): Filter by **Tag Name** (Precise JSON match). (e.g., `tags=RPG&tags=Fantasy`).
+    - `tag_mode` (string, optional): Logic for `tags` list. `AND` (default) or `OR`.
+    - `tag_groups` (string, optional): **Advanced**. JSON string for groups logic: `(G1) OR (G2)`. Example: `[["RPG", "Fantasy"], ["Strategy"]]` means `(RPG AND Fantasy) OR Strategy`.
+    - `exclude_tags` (list[string], optional): Filter by **Excluding** Tag Name. (e.g., `exclude_tags=Netorare`).
     - `updated_after` (string, optional): Filter for games updated after this date (ISO 8601, e.g., "2024-01-01").
     - `page` (int, optional): Page number (default: 1).
     - `limit` (int, optional): Items per page (default: 30, max: 100).
     - `sort_by` (string, optional): Sort field (`name`, `updated_at`, `rating`, `likes`). Default: `updated_at`.
     - `sort_dir` (string, optional): Sort direction (`asc`, `desc`). Default: `desc`.
 - **Example (Advanced)**:
-    - *Query*: Engine = RenPy OR Unity, Status = Ongoing OR Completed, Exclude Status = Abandoned, Tags = [3dcg], Exclude Tags = [spanking]
-    - *URL*: `/games/search?engine=14&engine=19&status=1&status=Completed&exclude_status=Abandoned&tags=4&exclude_tags=119`
+    - *Query 1*: Engine = RenPy, Tag = RPG OR Strategy, Status = Ongoing
+    - *URL 1*: `/games/search?engine=14&status=1&tags=RPG&tags=Strategy&tag_mode=OR`
+    - *Query 2 (Complex)*: (Action AND Adventure) OR (Strategy)
+    - *URL 2*: `/games/search?tag_groups=%5B%5B%22Action%22%2C%22Adventure%22%5D%2C%5B%22Strategy%22%5D%5D`
 - **Returns**: JSON Array of [Game Objects](#game-object-model).
 
 ### 2. Get Game Details
