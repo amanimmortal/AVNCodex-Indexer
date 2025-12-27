@@ -360,13 +360,24 @@ class GameService:
             tag_conditions = []
             for tag in tags:
                 # Precise tag matching for JSON array string "[...]"
-                # We expect tags to be double-quoted in JSON: ["Tag"]
-                tag_q = f'"{tag}"'
+                # Handle Integer vs String tags in JSON
+                # If digit, assume stored as number [1, 2] -> Match 1
+                # If string, assume stored as string ["Tag"] -> Match "Tag"
+                if str(tag).isdigit():
+                    t_val = tag
+                else:
+                    # If it's a string, ensure it is quoted for JSON matching
+                    # Unless it's already quoted
+                    if str(tag).startswith('"') and str(tag).endswith('"'):
+                        t_val = tag
+                    else:
+                        t_val = f'"{tag}"'
+
                 cond = or_(
-                    Game.tags == f"[{tag_q}]",
-                    Game.tags.like(f"[{tag_q}, %"),
-                    Game.tags.like(f"%, {tag_q}]"),
-                    Game.tags.like(f"%, {tag_q}, %"),
+                    Game.tags == f"[{t_val}]",
+                    Game.tags.like(f"[{t_val}, %"),
+                    Game.tags.like(f"%, {t_val}]"),
+                    Game.tags.like(f"%, {t_val}, %"),
                 )
                 tag_conditions.append(cond)
 
@@ -392,12 +403,19 @@ class GameService:
                         # Build AND conditions for this group
                         current_group_and = []
                         for tag in group_tags:
-                            tag_q = f'"{tag}"'
+                            if str(tag).isdigit():
+                                t_val = tag
+                            else:
+                                if str(tag).startswith('"') and str(tag).endswith('"'):
+                                    t_val = tag
+                                else:
+                                    t_val = f'"{tag}"'
+
                             cond = or_(
-                                Game.tags == f"[{tag_q}]",
-                                Game.tags.like(f"[{tag_q}, %"),
-                                Game.tags.like(f"%, {tag_q}]"),
-                                Game.tags.like(f"%, {tag_q}, %"),
+                                Game.tags == f"[{t_val}]",
+                                Game.tags.like(f"[{t_val}, %"),
+                                Game.tags.like(f"%, {t_val}]"),
+                                Game.tags.like(f"%, {t_val}, %"),
                             )
                             current_group_and.append(cond)
 
